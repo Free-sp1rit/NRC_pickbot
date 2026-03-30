@@ -7,8 +7,8 @@ This version is designed for games which ignore background window messages and o
 ## What this does
 
 - Brings the target game window to the foreground.
-- Sends keyboard and mouse input with `pydirectinput`.
-- Captures screen regions with `mss`.
+- Sends keyboard and mouse input with `pyautogui` by default.
+- Captures screen regions with `pyautogui` by default.
 - Matches templates with OpenCV.
 - Uses hotkeys to start, stop, reload config, and exit.
 - Writes logs to `logs/pickbot.log`.
@@ -56,6 +56,12 @@ Minimal example:
     "process_name": "NRC-Win64-Shipping.exe",
     "bring_to_front": true
   },
+  "input": {
+    "backend": "pyautogui"
+  },
+  "capture": {
+    "backend": "pyautogui"
+  },
   "loop": {
     "interval_seconds": 1.0
   },
@@ -75,6 +81,11 @@ Supported step types:
 - `click`: click a coordinate, optionally relative to the target window
 - `sleep`: wait for a number of seconds
 - `wait_image`: poll a region until a template image matches
+
+Backend fields:
+
+- `input.backend`: `pyautogui` or `pydirectinput`
+- `capture.backend`: `pyautogui` or `mss`
 
 Example `wait_image` step:
 

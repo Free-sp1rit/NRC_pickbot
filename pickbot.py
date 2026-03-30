@@ -12,6 +12,7 @@ import cv2
 import keyboard
 import mss
 import numpy as np
+import pyautogui
 import psutil
 import pydirectinput
 import win32con
@@ -26,6 +27,8 @@ LOG_DIR = APP_DIR / "logs"
 LOG_PATH = LOG_DIR / "pickbot.log"
 
 pydirectinput.FAILSAFE = False
+pyautogui.FAILSAFE = False
+pyautogui.PAUSE = 0
 
 
 logger = logging.getLogger("pickbot")
@@ -118,6 +121,16 @@ def resolve_region(hwnd: int, region: list[int], relative_to_window: bool = True
 
 
 def capture_region(region: dict[str, int]) -> np.ndarray:
+    return capture_region_with_backend(region, "mss")
+
+
+def capture_region_with_backend(region: dict[str, int], backend: str) -> np.ndarray:
+    if backend == "pyautogui":
+        pil = pyautogui.screenshot(
+            region=(region["left"], region["top"], region["width"], region["height"])
+        )
+        return cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
+
     with mss.mss() as sct:
         frame = np.array(sct.grab(region))
     return frame[:, :, :3]
@@ -136,7 +149,7 @@ def match_template(hwnd: int, step: dict[str, Any]) -> tuple[float, tuple[int, i
         step["region"],
         bool(step.get("relative_to_window", True)),
     )
-    frame = capture_region(region)
+    frame = capture_region_with_backend(region, str(step.get("capture_backend", "pyautogui")))
     frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
     if frame_gray.shape[0] < template.shape[0] or frame_gray.shape[1] < template.shape[1]:
@@ -147,32 +160,43 @@ def match_template(hwnd: int, step: dict[str, Any]) -> tuple[float, tuple[int, i
     return float(max_value), max_location
 
 
-def press_key(step: dict[str, Any]) -> None:
+def press_key(step: dict[str, Any], config: dict[str, Any]) -> None:
     key = step["key"]
     press_seconds = float(step.get("press_seconds", 0.05))
     count = int(step.get("count", 1))
     gap_seconds = float(step.get("gap_seconds", 0.05))
+    backend = str(config.get("input", {}).get("backend", "pyautogui")).lower()
 
     for index in range(count):
-        pydirectinput.keyDown(key)
-        time.sleep(press_seconds)
-        pydirectinput.keyUp(key)
+        if backend == "pyautogui":
+            pyautogui.keyDown(key)
+            time.sleep(press_seconds)
+            pyautogui.keyUp(key)
+        else:
+            pydirectinput.keyDown(key)
+            time.sleep(press_seconds)
+            pydirectinput.keyUp(key)
         if index + 1 < count:
             time.sleep(gap_seconds)
 
-    logger.info("Pressed key: %s", key)
+    logger.info("Pressed key: %s via %s", key, backend)
 
 
-def click_mouse(hwnd: int, step: dict[str, Any]) -> None:
+def click_mouse(hwnd: int, config: dict[str, Any], step: dict[str, Any]) -> None:
     region = resolve_region(
         hwnd,
         [int(step["x"]), int(step["y"]), 1, 1],
         bool(step.get("relative_to_window", True)),
     )
     button = str(step.get("button", "left"))
+    backend = str(config.get("input", {}).get("backend", "pyautogui")).lower()
 
-    pydirectinput.click(region["left"], region["top"], button=button)
-    logger.info("Clicked %s at %s,%s", button, region["left"], region["top"])
+    if backend == "pyautogui":
+        pyautogui.moveTo(region["left"], region["top"])
+        pyautogui.click(button=button)
+    else:
+        pydirectinput.click(region["left"], region["top"], button=button)
+    logger.info("Clicked %s at %s,%s via %s", button, region["left"], region["top"], backend)
 
 
 def wait_for_image(hwnd: int, config: dict[str, Any], step: dict[str, Any]) -> None:
@@ -200,9 +224,9 @@ def execute_step(hwnd: int, config: dict[str, Any], step: dict[str, Any]) -> Non
     step_type = step["type"]
 
     if step_type == "key":
-        press_key(step)
+        press_key(step, config)
     elif step_type == "click":
-        click_mouse(hwnd, step)
+        click_mouse(hwnd, config, step)
     elif step_type == "sleep":
         duration = float(step.get("seconds", 1.0))
         time.sleep(duration)

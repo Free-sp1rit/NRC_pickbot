@@ -26,3 +26,4 @@ python pickbot.py
 - This is foreground automation and will take control of keyboard and mouse input while running.
 - The game should be in windowed or borderless mode during setup and testing.
 - Template images should be placed in the `templates/` folder.
+- The default runtime uses `pyautogui` input and screenshot behavior.

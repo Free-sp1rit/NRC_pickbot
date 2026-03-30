@@ -4,6 +4,12 @@
     "window_title_contains": "",
     "bring_to_front": true
   },
+  "input": {
+    "backend": "pyautogui"
+  },
+  "capture": {
+    "backend": "pyautogui"
+  },
   "loop": {
     "interval_seconds": 1.0
   },
