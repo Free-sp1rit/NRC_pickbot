@@ -115,6 +115,7 @@ Supported steps:
 - `hold`: mouse hold, default 20ms
 - `key`: keyboard single tap
 - `wait`: explicit wait step
+- `wait_pixel`: wait until a screen pixel matches a target color
 - `repeat`: run a block a fixed number of times, then close it with `end`
 - `for_seconds`: keep running a block until the duration is reached, then close it with `end`
 
@@ -132,6 +133,15 @@ Mouse overrides:
 - `relative_to_window=true|false`
 - `button=left|right|middle`
 - `hold_ms=20` or `hold_seconds=0.02`
+
+Pixel wait overrides:
+
+- `x=100 y=200`
+- `rgb=255,255,255`
+- `tolerance=10`
+- `check_interval_seconds=0.2`
+- `base=2560x1440`
+- `relative_to_window=true|false`
 
 Keyboard overrides:
 
@@ -154,6 +164,12 @@ repeat 30
 key tab
 key 2
 end
+```
+
+Pixel wait example:
+
+```txt
+wait_pixel x=2340 y=1340 base=2560x1440 rgb=210,198,120 tolerance=12
 ```
 
 ## Notes

@@ -2,6 +2,7 @@
 # Outer loop is automatic: the whole file runs forever.
 # `repeat 30` means: run the block 30 times.
 # `for_seconds 30` means: keep running the block for about 30 seconds.
+# `wait_pixel x=100 y=200 rgb=255,255,255 tolerance=10` waits until the pixel matches.
 
 key 1
 hold position=cursor

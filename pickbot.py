@@ -39,6 +39,9 @@ STEP_TYPE_ALIASES = {
     "key_tap": "key_tap",
     "wait": "wait",
     "sleep": "wait",
+    "wait_pixel": "wait_until_pixel",
+    "wait_until_pixel": "wait_until_pixel",
+    "pixel": "wait_until_pixel",
 }
 
 PARAM_ALIASES = {
@@ -54,6 +57,10 @@ PARAM_ALIASES = {
     "pos": "position",
     "rel": "relative_to_window",
     "base": "base_resolution",
+    "color": "rgb",
+    "check": "check_interval_seconds",
+    "interval_seconds": "check_interval_seconds",
+    "interval_ms": "check_interval_ms",
 }
 
 
@@ -112,6 +119,8 @@ def normalize_seconds_fields(step: dict[str, Any]) -> dict[str, Any]:
         normalized["hold_seconds"] = float(normalized.pop("hold_ms")) / 1000.0
     if "gap_ms" in normalized:
         normalized["gap_seconds"] = float(normalized.pop("gap_ms")) / 1000.0
+    if "check_interval_ms" in normalized:
+        normalized["check_interval_seconds"] = float(normalized.pop("check_interval_ms")) / 1000.0
     if "seconds" in normalized:
         normalized["seconds"] = float(normalized["seconds"])
     if "hold_seconds" in normalized:
@@ -120,6 +129,8 @@ def normalize_seconds_fields(step: dict[str, Any]) -> dict[str, Any]:
         normalized["repeat_interval_seconds"] = float(normalized["repeat_interval_seconds"])
     if "gap_seconds" in normalized:
         normalized["gap_seconds"] = float(normalized["gap_seconds"])
+    if "check_interval_seconds" in normalized:
+        normalized["check_interval_seconds"] = float(normalized["check_interval_seconds"])
 
     return normalized
 
@@ -130,6 +141,14 @@ def parse_resolution(value: str) -> tuple[int, int]:
     if len(parts) != 2:
         raise ValueError(f"Invalid resolution value: {value}")
     return int(parts[0]), int(parts[1])
+
+
+def parse_rgb(value: str) -> tuple[int, int, int]:
+    parts = [part.strip() for part in value.split(",")]
+    if len(parts) != 3:
+        raise ValueError(f"Invalid rgb value: {value}")
+    red, green, blue = (int(part) for part in parts)
+    return red, green, blue
 
 
 def parse_workflow_line(line: str, line_number: int) -> dict[str, Any]:
@@ -180,6 +199,8 @@ def parse_workflow_line(line: str, line_number: int) -> dict[str, Any]:
         step["base_width"] = base_width
         step["base_height"] = base_height
         del step["base_resolution"]
+    if "rgb" in step:
+        step["rgb"] = parse_rgb(str(step["rgb"]))
 
     return normalize_seconds_fields(step)
 
@@ -218,6 +239,10 @@ def apply_step_defaults(step: dict[str, Any], defaults: dict[str, Any]) -> dict[
         merged.setdefault("repeat_interval_seconds", 0.05)
     elif step_type == "wait":
         merged.setdefault("seconds", 1.0)
+    elif step_type == "wait_until_pixel":
+        merged.setdefault("tolerance", 10)
+        merged.setdefault("check_interval_seconds", 0.2)
+        merged.setdefault("relative_to_window", False)
 
     if step_type == "mouse_hold":
         merged.setdefault("hold_seconds", 0.02)
@@ -227,6 +252,13 @@ def apply_step_defaults(step: dict[str, Any], defaults: dict[str, Any]) -> dict[
 
     if step_type == "wait" and float(merged.get("seconds", 0.0)) < 0:
         raise ValueError("wait step seconds must be >= 0.")
+    if step_type == "wait_until_pixel":
+        if "x" not in merged or "y" not in merged:
+            raise ValueError("wait_until_pixel step requires x and y.")
+        if "rgb" not in merged:
+            raise ValueError("wait_until_pixel step requires rgb=r,g,b.")
+        merged["rgb"] = tuple(int(channel) for channel in merged["rgb"])
+        merged["tolerance"] = int(merged.get("tolerance", 10))
 
     return merged
 
@@ -287,6 +319,7 @@ def load_config() -> dict[str, Any]:
     defaults = config.setdefault("defaults", {})
     for key in ("mouse_click", "mouse_hold", "key_tap", "wait"):
         defaults.setdefault(key, {})
+    defaults.setdefault("wait_until_pixel", {})
 
     config["workflow_path"] = str(workflow_path)
     config["steps"] = load_workflow(workflow_path, defaults)
@@ -361,6 +394,20 @@ def resolve_click_point(hwnd: int, step: dict[str, Any]) -> tuple[int, int]:
     return int(width / 2), int(height / 2)
 
 
+def resolve_screen_point(hwnd: int, step: dict[str, Any]) -> tuple[int, int]:
+    x = int(step["x"])
+    y = int(step["y"])
+    if "base_width" in step and "base_height" in step:
+        screen_width, screen_height = pyautogui.size()
+        x = round(x * screen_width / int(step["base_width"]))
+        y = round(y * screen_height / int(step["base_height"]))
+    if to_bool(step.get("relative_to_window", False)):
+        left, top, _, _ = window_rect(hwnd)
+        x += left
+        y += top
+    return x, y
+
+
 def interruptible_sleep(stop_event: threading.Event | None, seconds: float, bot: "Bot | None" = None) -> None:
     deadline = time.monotonic() + max(0.0, seconds)
     while time.monotonic() < deadline:
@@ -378,6 +425,27 @@ def perform_wait(step: dict[str, Any], stop_event: threading.Event, bot: "Bot") 
     seconds = float(step.get("seconds", 0.0))
     logger.info("Wait: %.3fs", seconds)
     interruptible_sleep(stop_event, seconds, bot)
+
+
+def color_matches(actual: tuple[int, int, int], expected: tuple[int, int, int], tolerance: int) -> bool:
+    return all(abs(int(actual[index]) - int(expected[index])) <= tolerance for index in range(3))
+
+
+def perform_wait_until_pixel(hwnd: int, step: dict[str, Any], stop_event: threading.Event, bot: "Bot") -> None:
+    x, y = resolve_screen_point(hwnd, step)
+    expected = tuple(int(channel) for channel in step["rgb"])
+    tolerance = int(step.get("tolerance", 10))
+    check_interval_seconds = float(step.get("check_interval_seconds", 0.2))
+
+    logger.info("Wait-until-pixel: %s,%s -> %s tolerance=%d", x, y, expected, tolerance)
+    while not stop_event.is_set():
+        if bot.check_safety_stop():
+            return
+        actual = tuple(int(channel) for channel in pyautogui.pixel(x, y))
+        if color_matches(actual, expected, tolerance):
+            logger.info("Pixel matched at %s,%s: %s", x, y, actual)
+            return
+        interruptible_sleep(stop_event, check_interval_seconds, bot)
 
 
 def perform_key_tap(step: dict[str, Any], stop_event: threading.Event, bot: "Bot") -> None:
@@ -436,6 +504,8 @@ def execute_step(hwnd: int, step: dict[str, Any], stop_event: threading.Event, b
 
     if step_type == "wait":
         perform_wait(step, stop_event, bot)
+    elif step_type == "wait_until_pixel":
+        perform_wait_until_pixel(hwnd, step, stop_event, bot)
     elif step_type == "key_tap":
         perform_key_tap(step, stop_event, bot)
     elif step_type == "mouse_click":

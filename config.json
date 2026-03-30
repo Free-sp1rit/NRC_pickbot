@@ -45,6 +45,11 @@
     },
     "wait": {
       "seconds": 1.0
+    },
+    "wait_until_pixel": {
+      "tolerance": 10,
+      "check_interval_seconds": 0.2,
+      "relative_to_window": false
     }
   }
 }

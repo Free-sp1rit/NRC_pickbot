@@ -35,6 +35,7 @@ python pickbot.py
 - There is a default wait between every two steps. You can change it in `config.json`.
 - `for_seconds ... end` can be used for a timed sub-loop.
 - `repeat ... end` can be used for a count-based sub-loop.
+- `wait_pixel` can be used for lightweight state detection.
 - `base=2560x1440` can scale coordinates from a fixed reference resolution.
 - `flow.txt` is intentionally short. Example:
 
