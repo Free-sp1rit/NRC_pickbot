@@ -1,144 +1,106 @@
 # pickbot
 
-Minimal AutoHotkey v2 MVP for sending scripted key and mouse input to a target window without using screenshots.
+Python-based foreground automation bot for Windows games.
+
+This version is designed for games which ignore background window messages and only react to real foreground keyboard and mouse input. It also supports template-based screenshot matching for simple screen-state checks.
 
 ## What this does
 
-- Targets a specific window with `ControlSend` and `ControlClick`.
-- Runs a fixed loop of steps from `config.ini`.
+- Brings the target game window to the foreground.
+- Sends keyboard and mouse input with `pydirectinput`.
+- Captures screen regions with `mss`.
+- Matches templates with OpenCV.
 - Uses hotkeys to start, stop, reload config, and exit.
-- Writes a plain text log to `logs/pickbot.log`.
-
-## What this does not do
-
-- No screenshot recognition.
-- No computer vision.
-- No dynamic pathfinding or state detection.
-- No bypass for anti-cheat or exclusive input models.
-
-If the game only accepts raw or exclusive foreground input, background delivery may not work.
+- Writes logs to `logs/pickbot.log`.
 
 ## Requirements
 
 - Windows
-- AutoHotkey v2
+- Python 3.10+
 
-## Run from Win11
+## Install
 
-This repository currently lives in WSL. On your Windows 11 side, the same folder is available at:
+On Windows:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install -r requirements.txt
+```
+
+If your repo is in WSL, you can still open it from Windows here:
 
 `\\wsl.localhost\Ubuntu\home\yimg\code\pickbot`
 
-You can run the bot in either of these ways:
+## Run
 
-1. Install AutoHotkey v2 on Windows.
-2. Open the folder above in Explorer.
-3. Edit `config.ini`.
-4. Run the script:
-   - Double-click `pickbot.ahk`, or
-   - Right-click `pickbot.ahk` and choose Run Script, or
-   - Run `powershell -ExecutionPolicy Bypass -File .\run.ps1`
-
-The simplest path is to leave the source code in WSL and only execute it from Windows.
-
-## Release to G Drive
-
-This repo includes a WSL-side release script which only copies runtime files to:
-
-`G:\MyBot\pickbot`
-
-From WSL, run:
-
-```bash
-./release_wsl.sh
+```powershell
+python pickbot.py
 ```
 
-It stages the build in the target directory, compiles the executable there, and leaves only these release artifacts:
+Default hotkeys:
 
-- `pickbot.exe`
-- `config.ini`
-- `USER_GUIDE.md`
-- `README.md`
+- `F8`: start or stop
+- `F9`: reload `config.json`
+- `F10`: exit
 
-It does not modify any other Windows directory.
+## Config
 
-## Quick start
+The bot reads `config.json`.
 
-1. Install AutoHotkey v2.
-2. Edit `config.ini`.
-3. Change `WinTitle` to your game window rule, for example:
-   - `ahk_exe NRC-Win64-Shipping.exe`
-   - `Game Window Title`
-4. Run `pickbot.ahk`.
-5. Use the hotkeys:
-   - `F8`: start or stop the loop
-   - `F9`: reload `config.ini`
-   - `F10`: exit
+Minimal example:
 
-## Build an EXE
-
-You can package the script as an `.exe`.
-
-- Windows Explorer:
-  - Right-click `pickbot.ahk`
-  - Choose `Compile Script`
-- PowerShell:
-  - Run `powershell -ExecutionPolicy Bypass -File .\build.ps1`
-
-For the release flow used by this repo, run `build.ps1` from `G:\MyBot\pickbot`.
-It writes the final executable directly into that same folder:
-
-- `G:\MyBot\pickbot\pickbot.exe`
-
-For the default release workflow, use `./release_wsl.sh` in WSL. It compiles in place and then removes temporary build files from the Windows release folder.
-The Windows-side compiler is expected at:
-
-- `G:\MyBot\pickbot\compile\Ahk2Exe.exe`
-- `G:\MyBot\pickbot\compile\AutoHotkey.exe`
-
-Use a stable AutoHotkey v2 release in `compile\`. Old alpha builds are not compatible with this project.
-
-Important:
-
-- The compiled EXE does not improve compatibility with anti-cheat or games which reject background input.
-- The EXE still reads `config.ini` from its own directory, so keep `config.ini` next to `pickbot.exe`.
-- Compiling is mainly for convenience and distribution. It is not a stealth feature.
-
-## Config format
-
-The script reads these sections:
-
-```ini
-[Target]
-WinTitle=ahk_exe NRC-Win64-Shipping.exe
-
-[Loop]
-IntervalMs=3000
-
-[Step1]
-Type=Key
-Value=1
-DelayMs=500
-
-[Step2]
-Type=Click
-X=100
-Y=100
-Button=Left
-Count=1
-DelayMs=800
+```json
+{
+  "target": {
+    "process_name": "NRC-Win64-Shipping.exe",
+    "bring_to_front": true
+  },
+  "loop": {
+    "interval_seconds": 1.0
+  },
+  "steps": [
+    {
+      "type": "key",
+      "key": "p",
+      "press_seconds": 0.05
+    }
+  ]
+}
 ```
 
 Supported step types:
 
-- `Key`: sends a key sequence such as `1`, `{Space}`, `{F1}`
-- `Text`: sends literal text
-- `Click`: clicks a coordinate in the target window client area
-- `Sleep`: pauses inside the loop for `DurationMs`
+- `key`: press a foreground key such as `p`, `space`, `f1`
+- `click`: click a coordinate, optionally relative to the target window
+- `sleep`: wait for a number of seconds
+- `wait_image`: poll a region until a template image matches
+
+Example `wait_image` step:
+
+```json
+{
+  "type": "wait_image",
+  "template": "templates/battle_ready.png",
+  "region": [100, 100, 300, 200],
+  "threshold": 0.92,
+  "timeout_seconds": 5.0,
+  "relative_to_window": true
+}
+```
+
+## Template Matching
+
+Put template images in `templates/`.
+
+The `region` field is `[x, y, width, height]`.
+
+- If `relative_to_window` is `true`, the region is relative to the game window.
+- If `relative_to_window` is `false`, the region is absolute screen coordinates.
 
 ## Notes
 
-- `ControlClick` uses `NA` mode and `SetControlDelay -1` to reduce focus stealing.
-- This MVP is best for deterministic timed tasks.
+- This is foreground automation, so it will take focus and interfere with normal keyboard and mouse use while running.
 - Start with the game in windowed or borderless mode while testing.
-- If Windows warns about running files directly from `\\wsl.localhost\...`, use the released folder `G:\MyBot\pickbot` instead.
+- Some games with anti-cheat may detect or block automation.
+- The old AutoHotkey files remain in the repo as a legacy path, but the Python workflow is now the primary implementation.

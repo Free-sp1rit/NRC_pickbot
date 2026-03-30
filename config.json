@@ -1,0 +1,26 @@
+{
+  "target": {
+    "process_name": "NRC-Win64-Shipping.exe",
+    "window_title_contains": "",
+    "bring_to_front": true
+  },
+  "loop": {
+    "interval_seconds": 1.0
+  },
+  "hotkeys": {
+    "toggle": "f8",
+    "reload": "f9",
+    "exit": "f10"
+  },
+  "steps": [
+    {
+      "type": "key",
+      "key": "p",
+      "press_seconds": 0.05,
+      "count": 1
+    }
+  ],
+  "matching": {
+    "default_poll_seconds": 0.2
+  }
+}

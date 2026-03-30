@@ -1,36 +1,29 @@
 # pickbot User Guide
 
-## Files in the release folder
+## Current runtime
 
-- `pickbot.exe`: the program to run
-- `config.ini`: bot configuration
-- `USER_GUIDE.md`: end-user instructions
-- `README.md`: developer notes
+The primary runtime is now Python, not AutoHotkey.
 
 ## How to use
 
-1. Put `pickbot.exe` and `config.ini` in the same folder.
-2. Make sure the target game process is running:
-   - `NRC-Win64-Shipping.exe`
-3. Double-click `pickbot.exe`.
-4. Use the hotkeys:
-   - `F8`: start or stop
-   - `F9`: reload `config.ini`
-   - `F10`: exit
+1. Install Python 3.10 or newer on Windows.
+2. Install the dependencies from `requirements.txt`.
+3. Edit `config.json`.
+4. Run:
 
-## Config
-
-The target process is configured in `config.ini`:
-
-```ini
-[Target]
-WinTitle=ahk_exe NRC-Win64-Shipping.exe
+```powershell
+python pickbot.py
 ```
 
-Keep `config.ini` next to `pickbot.exe`.
+## Default hotkeys
+
+- `F8`: start or stop
+- `F9`: reload `config.json`
+- `F10`: exit
 
 ## Important notes
 
-- Start with the game in windowed or borderless mode while testing.
-- Some games ignore background window messages. In that case, this bot may not work for that game.
-- Anti-cheat protected games may detect or block automation.
+- This is foreground automation and will take control of keyboard and mouse input while running.
+- The game should be in windowed or borderless mode during setup and testing.
+- Template images should be placed in the `templates/` folder.
+- The old AutoHotkey files are kept only as legacy tooling.
