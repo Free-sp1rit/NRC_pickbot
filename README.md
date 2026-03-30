@@ -103,4 +103,3 @@ The `region` field is `[x, y, width, height]`.
 - This is foreground automation, so it will take focus and interfere with normal keyboard and mouse use while running.
 - Start with the game in windowed or borderless mode while testing.
 - Some games with anti-cheat may detect or block automation.
-- The old AutoHotkey files remain in the repo as a legacy path, but the Python workflow is now the primary implementation.
