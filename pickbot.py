@@ -651,12 +651,24 @@ def perform_mouse_drag(hwnd: int, step: dict[str, Any], stop_event: threading.Ev
         if str(step.get("position", "")).lower() != "cursor":
             pyautogui.moveTo(start_x, start_y)
         pyautogui.mouseDown(x=start_x, y=start_y, button=button)
-        for move_index in range(1, move_steps + 1):
-            progress = move_index / move_steps
+        drag_started = time.monotonic()
+        tick_seconds = max(0.005, duration_seconds / move_steps)
+        while True:
+            if bot.check_safety_stop() or stop_event.is_set():
+                pyautogui.mouseUp(button=button)
+                return
+
+            elapsed = min(duration_seconds, time.monotonic() - drag_started)
+            progress = 1.0 if duration_seconds <= 0 else elapsed / duration_seconds
             current_x = round(start_x + dx * progress)
             current_y = round(start_y + dy * progress)
             pyautogui.moveTo(current_x, current_y)
-            interruptible_sleep(stop_event, duration_seconds / move_steps, bot)
+
+            if progress >= 1.0:
+                break
+
+            interruptible_sleep(stop_event, tick_seconds, bot)
+
         pyautogui.mouseUp(x=end_x, y=end_y, button=button)
         if index + 1 < repeat:
             interruptible_sleep(stop_event, repeat_interval_seconds, bot)
