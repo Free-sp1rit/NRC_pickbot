@@ -30,8 +30,9 @@ python pickbot.py
 
 - This is foreground automation and will take control of keyboard and mouse input while running.
 - The game should be in windowed or borderless mode during setup and testing.
-- The current program uses four action types: `mouse_click`, `mouse_hold`, `key_tap`, and `wait`.
+- The current program uses actions like `mouse_click`, `mouse_hold`, `mouse_drag`, `key_tap`, and `wait`.
 - `mouse_hold` defaults to 20ms if you do not override `hold_seconds`.
+- `drag_down_half position=cursor` means hold the mouse, drag downward by half the screen height, then release.
 - There is a default wait between every two steps. You can change it in `config.json`.
 - `for_seconds ... end` can be used for a timed sub-loop.
 - `repeat ... end` can be used for a count-based sub-loop.

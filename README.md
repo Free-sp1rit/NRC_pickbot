@@ -11,9 +11,10 @@ This version is focused on foreground input only and uses:
 
 - Brings the target game window to the foreground.
 - Sends keyboard and mouse input with `pyautogui`.
-- Supports four primitive actions:
+- Supports input actions and scene wait steps:
   - `mouse_click`
   - `mouse_hold`
+  - `mouse_drag`
   - `key_tap`
   - `wait`
 - Inserts a default wait between every two steps.
@@ -113,6 +114,8 @@ Supported steps:
 
 - `click`: mouse single click
 - `hold`: mouse hold, default 20ms
+- `drag`: mouse hold + drag + release
+- `drag_down_half`: convenience alias for dragging downward by half the screen height
 - `key`: keyboard single tap
 - `wait`: explicit wait step
 - `wait_pixel`: wait until a screen pixel matches a target color
@@ -134,6 +137,15 @@ Mouse overrides:
 - `relative_to_window=true|false`
 - `button=left|right|middle`
 - `hold_ms=20` or `hold_seconds=0.02`
+
+Drag overrides:
+
+- `position=center|cursor|window_center`
+- `dx=0 dy=300`
+- `dx_ratio=0.0 dy_ratio=0.5`
+- `duration_seconds=0.3`
+- `steps=20`
+- `base=2560x1440`
 
 Pixel wait overrides:
 
@@ -175,6 +187,16 @@ repeat 30
 key tab
 key 2
 end
+```
+
+Drag example:
+
+```txt
+drag_down_half position=cursor
+```
+
+```txt
+drag position=cursor dy_ratio=0.5 duration_seconds=0.4
 ```
 
 Pixel wait example:

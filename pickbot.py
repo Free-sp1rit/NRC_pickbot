@@ -36,6 +36,9 @@ STEP_TYPE_ALIASES = {
     "mouse_click": "mouse_click",
     "hold": "mouse_hold",
     "mouse_hold": "mouse_hold",
+    "drag": "mouse_drag",
+    "swipe": "mouse_drag",
+    "mouse_drag": "mouse_drag",
     "key": "key_tap",
     "tap": "key_tap",
     "key_tap": "key_tap",
@@ -167,6 +170,8 @@ def parse_workflow_line(line: str, line_number: int) -> dict[str, Any]:
         if len(tokens) < 2:
             raise ValueError(f"Line {line_number}: repeat requires a count.")
         return {"type": "repeat", "count": int(parse_scalar(tokens[1]))}
+    if raw_type in {"drag_down_half", "swipe_down_half"}:
+        return {"type": "mouse_drag", "dy_ratio": 0.5}
     if raw_type in {"for_seconds", "repeat_for_seconds"}:
         if len(tokens) < 2:
             raise ValueError(f"Line {line_number}: for_seconds requires a duration.")
@@ -233,7 +238,7 @@ def apply_step_defaults(step: dict[str, Any], defaults: dict[str, Any]) -> dict[
     merged["type"] = step_type
     merged = normalize_seconds_fields(merged)
 
-    if step_type in {"mouse_click", "mouse_hold"}:
+    if step_type in {"mouse_click", "mouse_hold", "mouse_drag"}:
         merged.setdefault("position", "center")
         merged.setdefault("button", "left")
         merged.setdefault("repeat", 1)
@@ -257,6 +262,11 @@ def apply_step_defaults(step: dict[str, Any], defaults: dict[str, Any]) -> dict[
 
     if step_type == "mouse_hold":
         merged.setdefault("hold_seconds", 0.02)
+    if step_type == "mouse_drag":
+        merged.setdefault("duration_seconds", 0.3)
+        merged.setdefault("steps", 20)
+        merged.setdefault("dx_ratio", 0.0)
+        merged.setdefault("dy_ratio", 0.5)
 
     if step_type == "key_tap" and not str(merged.get("key", "")).strip():
         raise ValueError("key_tap step is missing key.")
@@ -277,6 +287,15 @@ def apply_step_defaults(step: dict[str, Any], defaults: dict[str, Any]) -> dict[
             raise ValueError("wait_until_image step requires x, y, w, h.")
         merged["confidence"] = float(merged.get("confidence", 0.9))
         merged["grayscale"] = to_bool(merged.get("grayscale", True))
+    if step_type == "mouse_drag":
+        merged["duration_seconds"] = float(merged.get("duration_seconds", 0.3))
+        merged["steps"] = max(1, int(merged.get("steps", 20)))
+        merged["dx_ratio"] = float(merged.get("dx_ratio", 0.0))
+        merged["dy_ratio"] = float(merged.get("dy_ratio", 0.5))
+        if "dx" in merged:
+            merged["dx"] = float(merged["dx"])
+        if "dy" in merged:
+            merged["dy"] = float(merged["dy"])
 
     return merged
 
@@ -335,7 +354,7 @@ def load_config() -> dict[str, Any]:
     workflow.setdefault("default_between_seconds", 1.0)
 
     defaults = config.setdefault("defaults", {})
-    for key in ("mouse_click", "mouse_hold", "key_tap", "wait"):
+    for key in ("mouse_click", "mouse_hold", "mouse_drag", "key_tap", "wait"):
         defaults.setdefault(key, {})
     defaults.setdefault("wait_until_pixel", {})
     defaults.setdefault("wait_until_image", {})
@@ -436,6 +455,14 @@ def resolve_screen_rect(hwnd: int, step: dict[str, Any]) -> tuple[int, int, int,
         width = round(width * screen_width / int(step["base_width"]))
         height = round(height * screen_height / int(step["base_height"]))
     return x, y, width, height
+
+
+def scale_delta(step: dict[str, Any], dx: float, dy: float) -> tuple[float, float]:
+    if "base_width" in step and "base_height" in step:
+        screen_width, screen_height = pyautogui.size()
+        dx = dx * screen_width / int(step["base_width"])
+        dy = dy * screen_height / int(step["base_height"])
+    return dx, dy
 
 
 def load_reference_template(step: dict[str, Any]) -> Any:
@@ -603,6 +630,49 @@ def perform_mouse_hold(hwnd: int, step: dict[str, Any], stop_event: threading.Ev
     logger.info("Mouse hold: %s at %s,%s x%d (hold %.3fs)", button, x, y, repeat, hold_seconds)
 
 
+def perform_mouse_drag(hwnd: int, step: dict[str, Any], stop_event: threading.Event, bot: "Bot") -> None:
+    button = str(step.get("button", "left"))
+    repeat = int(step.get("repeat", 1))
+    repeat_interval_seconds = float(step.get("repeat_interval_seconds", 0.05))
+    duration_seconds = float(step.get("duration_seconds", 0.3))
+    move_steps = max(1, int(step.get("steps", 20)))
+    start_x, start_y = resolve_click_point(hwnd, step)
+
+    screen_width, screen_height = pyautogui.size()
+    dx = float(step.get("dx", 0.0))
+    dy = float(step.get("dy", 0.0))
+    dx, dy = scale_delta(step, dx, dy)
+    dx += float(step.get("dx_ratio", 0.0)) * screen_width
+    dy += float(step.get("dy_ratio", 0.0)) * screen_height
+    end_x = round(start_x + dx)
+    end_y = round(start_y + dy)
+
+    for index in range(repeat):
+        if str(step.get("position", "")).lower() != "cursor":
+            pyautogui.moveTo(start_x, start_y)
+        pyautogui.mouseDown(x=start_x, y=start_y, button=button)
+        for move_index in range(1, move_steps + 1):
+            progress = move_index / move_steps
+            current_x = round(start_x + dx * progress)
+            current_y = round(start_y + dy * progress)
+            pyautogui.moveTo(current_x, current_y)
+            interruptible_sleep(stop_event, duration_seconds / move_steps, bot)
+        pyautogui.mouseUp(x=end_x, y=end_y, button=button)
+        if index + 1 < repeat:
+            interruptible_sleep(stop_event, repeat_interval_seconds, bot)
+
+    logger.info(
+        "Mouse drag: %s from %s,%s to %s,%s x%d (duration %.3fs)",
+        button,
+        start_x,
+        start_y,
+        end_x,
+        end_y,
+        repeat,
+        duration_seconds,
+    )
+
+
 def execute_step(hwnd: int, step: dict[str, Any], stop_event: threading.Event, bot: "Bot") -> None:
     step_type = str(step["type"]).lower()
 
@@ -618,6 +688,8 @@ def execute_step(hwnd: int, step: dict[str, Any], stop_event: threading.Event, b
         perform_mouse_click(hwnd, step, stop_event, bot)
     elif step_type == "mouse_hold":
         perform_mouse_hold(hwnd, step, stop_event, bot)
+    elif step_type == "mouse_drag":
+        perform_mouse_drag(hwnd, step, stop_event, bot)
     else:
         raise ValueError(f"Unsupported step type: {step_type}")
 

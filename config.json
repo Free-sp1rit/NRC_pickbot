@@ -37,6 +37,17 @@
       "repeat_interval_seconds": 0.05,
       "relative_to_window": false
     },
+    "mouse_drag": {
+      "position": "center",
+      "button": "left",
+      "duration_seconds": 0.3,
+      "steps": 20,
+      "dx_ratio": 0.0,
+      "dy_ratio": 0.5,
+      "repeat": 1,
+      "repeat_interval_seconds": 0.05,
+      "relative_to_window": false
+    },
     "key_tap": {
       "key": "p",
       "hold_seconds": 0.03,
