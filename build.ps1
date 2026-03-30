@@ -36,20 +36,25 @@ Copy-Item -Path $sourceRuntime -Destination (Join-Path $toolRoot "AutoHotkey.exe
 Copy-Item -Path $sourceCompiler -Destination $compiler -Force
 
 $outputPath = Join-Path $OutputDir $OutputName
+$tempOutputPath = Join-Path $OutputDir "_pickbot_build.exe"
 
 try {
-    & $compiler /in $InputScript /out $outputPath
+    Remove-Item -Force -ErrorAction SilentlyContinue $tempOutputPath
+
+    & $compiler /in $InputScript /out $tempOutputPath
 
     if ($LASTEXITCODE -ne 0) {
         throw "Ahk2Exe exited with code $LASTEXITCODE."
     }
 
-    if (-not (Test-Path $outputPath)) {
+    if (-not (Test-Path $tempOutputPath)) {
         throw "Failed to compile: $InputScript"
     }
 
+    Move-Item -Force -Path $tempOutputPath -Destination $outputPath
     Write-Host "Built: $outputPath"
 }
 finally {
+    Remove-Item -Force -ErrorAction SilentlyContinue $tempOutputPath
     Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $toolRoot
 }

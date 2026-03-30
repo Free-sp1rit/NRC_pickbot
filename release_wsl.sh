@@ -14,6 +14,17 @@ STAGING_FILES=(
 )
 
 mkdir -p "$TARGET_DIR"
+
+cleanup_release_temp() {
+  rm -f \
+    "$TARGET_DIR/pickbot.ahk" \
+    "$TARGET_DIR/build.ps1" \
+    "$TARGET_DIR/run.ps1"
+  rm -rf "$TARGET_DIR/_compile_runtime"
+}
+
+trap cleanup_release_temp EXIT
+
 rm -f "$TARGET_DIR/run.ps1"
 
 for file in "${STAGING_FILES[@]}"; do
@@ -21,10 +32,5 @@ for file in "${STAGING_FILES[@]}"; do
 done
 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "${TARGET_WIN}\\build.ps1"
-
-rm -f \
-  "$TARGET_DIR/pickbot.ahk" \
-  "$TARGET_DIR/build.ps1" \
-  "$TARGET_DIR/run.ps1"
 
 printf 'Released final artifacts to %s\n' "$TARGET_DIR"
