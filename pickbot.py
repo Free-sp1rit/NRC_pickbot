@@ -440,6 +440,7 @@ def resolve_screen_rect(hwnd: int, step: dict[str, Any]) -> tuple[int, int, int,
 
 def load_reference_template(step: dict[str, Any]) -> Any:
     import cv2  # type: ignore
+    import numpy as np  # type: ignore
 
     template_path = PIC_DIR / str(step["template"])
     if not template_path.exists():
@@ -456,7 +457,8 @@ def load_reference_template(step: dict[str, Any]) -> Any:
     if cache_key in IMAGE_TEMPLATE_CACHE:
         return IMAGE_TEMPLATE_CACHE[cache_key]
 
-    image = cv2.imread(str(template_path), cv2.IMREAD_COLOR)
+    image_bytes = template_path.read_bytes()
+    image = cv2.imdecode(np.frombuffer(image_bytes, dtype=np.uint8), cv2.IMREAD_COLOR)
     if image is None:
         raise ValueError(f"Failed to load template image: {template_path}")
 
