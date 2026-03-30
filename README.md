@@ -91,6 +91,12 @@ It writes the final executable directly into that same folder:
 - `G:\MyBot\pickbot\pickbot.exe`
 
 For the default release workflow, use `./release_wsl.sh` in WSL. It compiles in place and then removes temporary build files from the Windows release folder.
+The Windows-side compiler is expected at:
+
+- `G:\MyBot\pickbot\compile\Ahk2Exe.exe`
+- `G:\MyBot\pickbot\compile\AutoHotkey.exe`
+
+Use a stable AutoHotkey v2 release in `compile\`. Old alpha builds are not compatible with this project.
 
 Important:
 
