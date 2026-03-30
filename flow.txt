@@ -1,22 +1,35 @@
-# One step per line.
-# Supported steps:
-#   click
-#   hold
-#   key
-#   wait
-#
-# Common overrides:
-#   gap=0.5
-#   repeat=3
-#
-# Mouse overrides:
-#   position=center|cursor|window_center
-#   x=960 y=540 relative_to_window=true|false
-#   button=left|right|middle
-#   hold_ms=20
-#
-# Keyboard overrides:
-#   key p
-#   hold_ms=30
+# Default gap between steps: 0.5s
+# Outer loop is automatic: the whole file runs forever.
+# `for_seconds 30` means: keep running the block for about 30 seconds.
 
+key 1
 hold position=cursor
+key 2
+hold position=cursor
+key 3
+hold position=cursor
+key 4
+hold position=cursor
+key 5
+hold position=cursor
+key 6
+hold position=cursor
+
+for_seconds 30
+key tab
+key 2
+key esc
+wait 15
+key 6
+key r
+wait 1
+key x
+key 6
+hold position=cursor
+end
+
+hold x=2340 y=1340 base=2560x1440
+hold x=2340 y=1340 base=2560x1440
+wait 10
+key f12
+wait 10

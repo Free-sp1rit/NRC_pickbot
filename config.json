@@ -19,7 +19,7 @@
   },
   "workflow": {
     "path": "flow.txt",
-    "default_between_seconds": 1.0
+    "default_between_seconds": 0.5
   },
   "defaults": {
     "mouse_click": {

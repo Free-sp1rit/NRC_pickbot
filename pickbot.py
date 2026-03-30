@@ -53,6 +53,7 @@ PARAM_ALIASES = {
     "wait_ms": "gap_ms",
     "pos": "position",
     "rel": "relative_to_window",
+    "base": "base_resolution",
 }
 
 
@@ -123,12 +124,27 @@ def normalize_seconds_fields(step: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def parse_resolution(value: str) -> tuple[int, int]:
+    cleaned = value.lower().replace("*", "x")
+    parts = cleaned.split("x", 1)
+    if len(parts) != 2:
+        raise ValueError(f"Invalid resolution value: {value}")
+    return int(parts[0]), int(parts[1])
+
+
 def parse_workflow_line(line: str, line_number: int) -> dict[str, Any]:
     tokens = shlex.split(line, comments=False, posix=True)
     if not tokens:
         raise ValueError(f"Line {line_number}: empty workflow line.")
 
     raw_type = tokens[0].lower()
+    if raw_type in {"for_seconds", "repeat_for_seconds"}:
+        if len(tokens) < 2:
+            raise ValueError(f"Line {line_number}: for_seconds requires a duration.")
+        return {"type": "for_seconds", "seconds": float(parse_scalar(tokens[1]))}
+    if raw_type == "end":
+        return {"type": "end"}
+
     step_type = STEP_TYPE_ALIASES.get(raw_type)
     if step_type is None:
         raise ValueError(f"Line {line_number}: unsupported step type '{tokens[0]}'.")
@@ -155,11 +171,23 @@ def parse_workflow_line(line: str, line_number: int) -> dict[str, Any]:
         if position in {"cursor", "center", "window_center"}:
             step["position"] = position
 
+    if "base_resolution" in step:
+        base_width, base_height = parse_resolution(str(step["base_resolution"]))
+        step["base_width"] = base_width
+        step["base_height"] = base_height
+        del step["base_resolution"]
+
     return normalize_seconds_fields(step)
 
 
 def apply_step_defaults(step: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
     step_type = str(step["type"])
+    if step_type == "for_seconds":
+        merged = dict(step)
+        merged["seconds"] = float(merged.get("seconds", 0.0))
+        merged["steps"] = list(merged.get("steps", []))
+        return merged
+
     merged = deepcopy(defaults.get(step_type, {}))
     merged.update(step)
     merged["type"] = step_type
@@ -194,19 +222,41 @@ def load_workflow(workflow_path: Path, defaults: dict[str, Any]) -> list[dict[st
     if not workflow_path.exists():
         raise FileNotFoundError(f"Missing workflow file next to the app: {workflow_path}")
 
-    steps: list[dict[str, Any]] = []
+    root_steps: list[dict[str, Any]] = []
+    stack: list[dict[str, Any]] = []
+
     with workflow_path.open("r", encoding="utf-8") as handle:
         for line_number, raw_line in enumerate(handle, start=1):
             line = raw_line.strip()
             if not line or line.startswith("#"):
                 continue
             step = parse_workflow_line(line, line_number)
-            steps.append(apply_step_defaults(step, defaults))
+            step_type = str(step["type"])
 
-    if not steps:
+            if step_type == "end":
+                if not stack:
+                    raise ValueError(f"Line {line_number}: unexpected end without matching for_seconds.")
+                completed = stack.pop()
+                target_steps = root_steps if not stack else stack[-1]["steps"]
+                target_steps.append(apply_step_defaults(completed, defaults))
+                continue
+
+            if step_type == "for_seconds":
+                step["steps"] = []
+                stack.append(step)
+                continue
+
+            normalized_step = apply_step_defaults(step, defaults)
+            target_steps = root_steps if not stack else stack[-1]["steps"]
+            target_steps.append(normalized_step)
+
+    if stack:
+        raise ValueError("Workflow file is missing end for a for_seconds block.")
+
+    if not root_steps:
         raise ValueError(f"Workflow file is empty: {workflow_path}")
 
-    return steps
+    return root_steps
 
 
 def load_config() -> dict[str, Any]:
@@ -277,6 +327,10 @@ def resolve_click_point(hwnd: int, step: dict[str, Any]) -> tuple[int, int]:
     if "x" in step and "y" in step:
         x = int(step["x"])
         y = int(step["y"])
+        if "base_width" in step and "base_height" in step:
+            screen_width, screen_height = pyautogui.size()
+            x = round(x * screen_width / int(step["base_width"]))
+            y = round(y * screen_height / int(step["base_height"]))
         if to_bool(step.get("relative_to_window", False)):
             left, top, _, _ = window_rect(hwnd)
             x += left
@@ -379,6 +433,39 @@ def execute_step(hwnd: int, step: dict[str, Any], stop_event: threading.Event, b
         raise ValueError(f"Unsupported step type: {step_type}")
 
 
+def execute_plan(hwnd: int, steps: list[dict[str, Any]], stop_event: threading.Event, bot: "Bot", default_between: float) -> bool:
+    for index, step in enumerate(steps):
+        if bot.check_safety_stop() or stop_event.is_set():
+            return False
+
+        step_type = str(step["type"]).lower()
+        if step_type == "for_seconds":
+            seconds = float(step.get("seconds", 0.0))
+            deadline = time.monotonic() + max(0.0, seconds)
+            logger.info("For-seconds block started: %.3fs", seconds)
+            while time.monotonic() < deadline:
+                remaining = deadline - time.monotonic()
+                if bot.check_safety_stop() or stop_event.is_set():
+                    return False
+                if not execute_plan(hwnd, list(step.get("steps", [])), stop_event, bot, default_between):
+                    return False
+                if remaining <= 0:
+                    break
+            logger.info("For-seconds block completed: %.3fs", seconds)
+        else:
+            execute_step(hwnd, step, stop_event, bot)
+
+        if bot.check_safety_stop() or stop_event.is_set():
+            return False
+
+        if index + 1 < len(steps):
+            gap_seconds = float(step.get("gap_seconds", default_between))
+            if gap_seconds > 0:
+                interruptible_sleep(stop_event, gap_seconds, bot)
+
+    return True
+
+
 class Bot:
     def __init__(self) -> None:
         self.lock = threading.Lock()
@@ -457,17 +544,7 @@ class Bot:
             try:
                 steps = config["steps"]
                 default_between = float(config.get("workflow", {}).get("default_between_seconds", 1.0))
-                for index, step in enumerate(steps):
-                    if self.check_safety_stop() or self.stop_event.is_set():
-                        break
-                    execute_step(hwnd, step, self.stop_event, self)
-                    if self.check_safety_stop() or self.stop_event.is_set():
-                        break
-                    if index + 1 < len(steps):
-                        gap_seconds = float(step.get("gap_seconds", default_between))
-                        if gap_seconds > 0:
-                            interruptible_sleep(self.stop_event, gap_seconds, self)
-                else:
+                if execute_plan(hwnd, steps, self.stop_event, self, default_between):
                     logger.info("Cycle completed.")
             except Exception as exc:
                 logger.exception("Cycle failed: %s", exc)

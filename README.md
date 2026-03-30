@@ -115,6 +115,7 @@ Supported steps:
 - `hold`: mouse hold, default 20ms
 - `key`: keyboard single tap
 - `wait`: explicit wait step
+- `for_seconds`: keep running a block until the duration is reached, then close it with `end`
 
 Common per-step overrides:
 
@@ -126,6 +127,7 @@ Mouse overrides:
 
 - `position=center|cursor|window_center`
 - `x=960 y=540`
+- `base=2560x1440`: scale coordinates from a base resolution to the current screen resolution
 - `relative_to_window=true|false`
 - `button=left|right|middle`
 - `hold_ms=20` or `hold_seconds=0.02`
@@ -134,6 +136,15 @@ Keyboard overrides:
 
 - `key p`
 - `hold_ms=30` or `hold_seconds=0.03`
+
+Timed block example:
+
+```txt
+for_seconds 30
+key tab
+wait 15
+end
+```
 
 ## Notes
 
