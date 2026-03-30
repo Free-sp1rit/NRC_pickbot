@@ -29,6 +29,7 @@ pydirectinput.FAILSAFE = False
 
 
 logger = logging.getLogger("pickbot")
+HOTKEY_HANDLES: list[Any] = []
 
 
 def configure_logging() -> None:
@@ -275,11 +276,19 @@ class Bot:
 
 
 def bind_hotkeys(bot: Bot) -> None:
-    keyboard.clear_all_hotkeys()
+    global HOTKEY_HANDLES
+
+    for handle in HOTKEY_HANDLES:
+        try:
+            keyboard.remove_hotkey(handle)
+        except (KeyError, ValueError):
+            pass
+    HOTKEY_HANDLES = []
+
     hotkeys = bot.config.get("hotkeys", {})
-    keyboard.add_hotkey(str(hotkeys.get("toggle", "f8")), bot.toggle)
-    keyboard.add_hotkey(str(hotkeys.get("reload", "f9")), bot.reload_config)
-    keyboard.add_hotkey(str(hotkeys.get("exit", "f10")), bot.stop)
+    HOTKEY_HANDLES.append(keyboard.add_hotkey(str(hotkeys.get("toggle", "f8")), bot.toggle))
+    HOTKEY_HANDLES.append(keyboard.add_hotkey(str(hotkeys.get("reload", "f9")), bot.reload_config))
+    HOTKEY_HANDLES.append(keyboard.add_hotkey(str(hotkeys.get("exit", "f10")), bot.stop))
 
 
 def main() -> None:
