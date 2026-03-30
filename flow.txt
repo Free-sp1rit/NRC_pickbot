@@ -2,9 +2,9 @@
 # Outer loop is automatic: the whole file runs forever.
 # `repeat 30` means: run the block 30 times.
 # `for_seconds 30` means: keep running the block for about 30 seconds.
-# `wait_image template=主场景.png x=1600 y=0 w=760 h=220 base=2560x1440` waits for a scene marker.
+# `wait_image` only compares the selected UI region, not the whole screenshot.
 
-wait_image template=主场景.png x=1600 y=0 w=760 h=220 base=2560x1440 confidence=0.88
+wait_image template=主场景.png x=1680 y=0 w=470 h=120 base=2560x1440 confidence=0.90
 
 key 1
 hold position=cursor
@@ -33,8 +33,8 @@ hold position=cursor
 end
 
 key m
-wait_image template=切换页.png x=0 y=0 w=460 h=220 base=2560x1440 confidence=0.92
+wait_image template=切换页.png x=0 y=0 w=520 h=170 base=2560x1440 confidence=0.93
 hold x=2340 y=1340 base=2560x1440
 hold x=2340 y=1340 base=2560x1440
-wait_image template=副场景.png x=840 y=0 w=440 h=240 base=2560x1440 confidence=0.88
+wait_image template=副场景.png x=1080 y=0 w=260 h=150 base=2560x1440 confidence=0.90
 key f12
