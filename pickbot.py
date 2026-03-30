@@ -51,6 +51,11 @@ def configure_logging() -> None:
     logger.addHandler(stream_handler)
 
 
+def current_mouse_position() -> tuple[int, int]:
+    pos = pyautogui.position()
+    return int(pos.x), int(pos.y)
+
+
 def load_config() -> dict[str, Any]:
     if not CONFIG_PATH.exists():
         raise FileNotFoundError(f"Missing config.json next to the app: {CONFIG_PATH}")
@@ -177,26 +182,39 @@ def press_key(step: dict[str, Any], config: dict[str, Any]) -> None:
             time.sleep(press_seconds)
             pydirectinput.keyUp(key)
         if index + 1 < count:
-            time.sleep(gap_seconds)
+            interruptible_sleep(None, gap_seconds)
 
     logger.info("Pressed key: %s via %s", key, backend)
 
 
 def click_mouse(hwnd: int, config: dict[str, Any], step: dict[str, Any]) -> None:
-    region = resolve_region(
-        hwnd,
-        [int(step["x"]), int(step["y"]), 1, 1],
-        bool(step.get("relative_to_window", True)),
-    )
     button = str(step.get("button", "left"))
     backend = str(config.get("input", {}).get("backend", "pyautogui")).lower()
+    count = int(step.get("count", 1))
+    gap_seconds = float(step.get("gap_seconds", 0.05))
+    use_cursor = str(step.get("position", "")).lower() == "cursor"
 
-    if backend == "pyautogui":
-        pyautogui.moveTo(region["left"], region["top"])
-        pyautogui.click(button=button)
+    if use_cursor:
+        click_x, click_y = current_mouse_position()
     else:
-        pydirectinput.click(region["left"], region["top"], button=button)
-    logger.info("Clicked %s at %s,%s via %s", button, region["left"], region["top"], backend)
+        region = resolve_region(
+            hwnd,
+            [int(step["x"]), int(step["y"]), 1, 1],
+            bool(step.get("relative_to_window", True)),
+        )
+        click_x, click_y = region["left"], region["top"]
+
+    for index in range(count):
+        if backend == "pyautogui":
+            if not use_cursor:
+                pyautogui.moveTo(click_x, click_y)
+            pyautogui.click(x=click_x, y=click_y, button=button)
+        else:
+            pydirectinput.click(click_x, click_y, button=button)
+        if index + 1 < count:
+            interruptible_sleep(None, gap_seconds)
+
+    logger.info("Clicked %s at %s,%s via %s", button, click_x, click_y, backend)
 
 
 def wait_for_image(hwnd: int, config: dict[str, Any], step: dict[str, Any]) -> None:
@@ -229,7 +247,7 @@ def execute_step(hwnd: int, config: dict[str, Any], step: dict[str, Any]) -> Non
         click_mouse(hwnd, config, step)
     elif step_type == "sleep":
         duration = float(step.get("seconds", 1.0))
-        time.sleep(duration)
+        interruptible_sleep(None, duration)
         logger.info("Slept for %.2f seconds", duration)
     elif step_type == "wait_image":
         wait_for_image(hwnd, config, step)
@@ -260,6 +278,25 @@ class Bot:
         self.stop_event.set()
         logger.info("Bot exit requested.")
 
+    def emergency_stop(self, reason: str) -> None:
+        with self.lock:
+            was_running = self.running
+            self.running = False
+        if was_running:
+            logger.warning("Emergency stop triggered: %s", reason)
+
+    def check_safety_stop(self) -> bool:
+        safety = self.config.get("safety", {})
+        if not bool(safety.get("mouse_corner_stop", True)):
+            return False
+
+        corner_size = int(safety.get("corner_size", 5))
+        mouse_x, mouse_y = current_mouse_position()
+        if mouse_x <= corner_size and mouse_y <= corner_size:
+            self.emergency_stop("mouse moved to top-left corner")
+            return True
+        return False
+
     def worker(self) -> None:
         while not self.stop_event.is_set():
             with self.lock:
@@ -268,6 +305,10 @@ class Bot:
 
             if not running:
                 time.sleep(0.1)
+                continue
+
+            if self.check_safety_stop():
+                interruptible_sleep(self.stop_event, 0.2)
                 continue
 
             cycle_started = time.monotonic()
@@ -295,15 +336,28 @@ class Bot:
 
             try:
                 for step in config["steps"]:
+                    if self.check_safety_stop():
+                        break
                     execute_step(hwnd, config, step)
-                logger.info("Cycle completed.")
+                else:
+                    logger.info("Cycle completed.")
             except Exception as exc:
                 logger.exception("Cycle failed: %s", exc)
 
             interval = float(config.get("loop", {}).get("interval_seconds", 1.0))
             elapsed = time.monotonic() - cycle_started
             if elapsed < interval:
-                time.sleep(interval - elapsed)
+                interruptible_sleep(self.stop_event, interval - elapsed, self)
+
+
+def interruptible_sleep(stop_event: threading.Event | None, seconds: float, bot: Bot | None = None) -> None:
+    deadline = time.monotonic() + max(0.0, seconds)
+    while time.monotonic() < deadline:
+        if stop_event is not None and stop_event.is_set():
+            return
+        if bot is not None and bot.check_safety_stop():
+            return
+        time.sleep(min(0.05, deadline - time.monotonic()))
 
 
 def bind_hotkeys(bot: Bot) -> None:

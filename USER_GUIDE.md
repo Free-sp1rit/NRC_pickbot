@@ -21,6 +21,10 @@ python pickbot.py
 - `F9`: reload `config.json`
 - `F10`: exit
 
+## Emergency stop
+
+- Move the mouse to the top-left corner of the screen to stop the running bot loop.
+
 ## Important notes
 
 - This is foreground automation and will take control of keyboard and mouse input while running.

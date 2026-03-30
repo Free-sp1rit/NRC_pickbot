@@ -65,11 +65,15 @@ Minimal example:
   "loop": {
     "interval_seconds": 1.0
   },
+  "safety": {
+    "mouse_corner_stop": true,
+    "corner_size": 5
+  },
   "steps": [
     {
-      "type": "key",
-      "key": "p",
-      "press_seconds": 0.05
+      "type": "click",
+      "position": "cursor",
+      "button": "left"
     }
   ]
 }
@@ -86,6 +90,12 @@ Backend fields:
 
 - `input.backend`: `pyautogui` or `pydirectinput`
 - `capture.backend`: `pyautogui` or `mss`
+
+Click step options:
+
+- `position: "cursor"`: click the current mouse position without remapping
+- `x` / `y`: click a fixed point
+- `relative_to_window`: when using `x` / `y`, treat them as window-relative coordinates
 
 Example `wait_image` step:
 
@@ -114,6 +124,7 @@ The `region` field is `[x, y, width, height]`.
 - This is foreground automation, so it will take focus and interfere with normal keyboard and mouse use while running.
 - Start with the game in windowed or borderless mode while testing.
 - Some games with anti-cheat may detect or block automation.
+- Emergency stop: move the mouse to the top-left corner of the screen.
 
 ## Build EXE
 

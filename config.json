@@ -13,6 +13,10 @@
   "loop": {
     "interval_seconds": 1.0
   },
+  "safety": {
+    "mouse_corner_stop": true,
+    "corner_size": 5
+  },
   "hotkeys": {
     "toggle": "f8",
     "reload": "f9",
@@ -20,9 +24,9 @@
   },
   "steps": [
     {
-      "type": "key",
-      "key": "p",
-      "press_seconds": 0.05,
+      "type": "click",
+      "position": "cursor",
+      "button": "left",
       "count": 1
     }
   ],
