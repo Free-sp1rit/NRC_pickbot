@@ -41,6 +41,27 @@ You can run the bot in either of these ways:
 
 The simplest path is to leave the source code in WSL and only execute it from Windows.
 
+## Release to G Drive
+
+This repo includes a WSL-side release script which only copies runtime files to:
+
+`G:\MyBot\pickbot`
+
+From WSL, run:
+
+```bash
+./release_wsl.sh
+```
+
+It copies only these files:
+
+- `README.md`
+- `pickbot.ahk`
+- `config.ini`
+- `run.ps1`
+
+It does not compile, and it does not modify any other Windows directory.
+
 ## Quick start
 
 1. Install AutoHotkey v2.
