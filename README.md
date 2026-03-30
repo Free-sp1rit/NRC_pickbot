@@ -116,6 +116,7 @@ Supported steps:
 - `key`: keyboard single tap
 - `wait`: explicit wait step
 - `wait_pixel`: wait until a screen pixel matches a target color
+- `wait_image`: wait until a scene/image region matches a reference screenshot
 - `repeat`: run a block a fixed number of times, then close it with `end`
 - `for_seconds`: keep running a block until the duration is reached, then close it with `end`
 
@@ -140,6 +141,16 @@ Pixel wait overrides:
 - `rgb=255,255,255`
 - `tolerance=10`
 - `check_interval_seconds=0.2`
+- `base=2560x1440`
+- `relative_to_window=true|false`
+
+Image wait overrides:
+
+- `template=主场景.png`
+- `x=1600 y=0 w=760 h=220`
+- `confidence=0.9`
+- `grayscale=true|false`
+- `check_interval_seconds=0.3`
 - `base=2560x1440`
 - `relative_to_window=true|false`
 
@@ -170,6 +181,12 @@ Pixel wait example:
 
 ```txt
 wait_pixel x=2340 y=1340 base=2560x1440 rgb=210,198,120 tolerance=12
+```
+
+Image wait example:
+
+```txt
+wait_image template=主场景.png x=1600 y=0 w=760 h=220 base=2560x1440 confidence=0.88
 ```
 
 ## Notes

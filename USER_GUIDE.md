@@ -36,6 +36,7 @@ python pickbot.py
 - `for_seconds ... end` can be used for a timed sub-loop.
 - `repeat ... end` can be used for a count-based sub-loop.
 - `wait_pixel` can be used for lightweight state detection.
+- `wait_image` can be used for scene detection based on a reference screenshot region.
 - `base=2560x1440` can scale coordinates from a fixed reference resolution.
 - `flow.txt` is intentionally short. Example:
 

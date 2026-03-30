@@ -20,6 +20,7 @@ import win32process
 
 APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
+PIC_DIR = APP_DIR / "pic"
 LOG_DIR = APP_DIR / "logs"
 LOG_PATH = LOG_DIR / "pickbot.log"
 
@@ -28,6 +29,7 @@ pyautogui.PAUSE = 0
 
 logger = logging.getLogger("pickbot")
 HOTKEY_HANDLES: list[Any] = []
+IMAGE_TEMPLATE_CACHE: dict[tuple[str, int, int, int, int, bool, int, int], Any] = {}
 
 STEP_TYPE_ALIASES = {
     "click": "mouse_click",
@@ -42,6 +44,9 @@ STEP_TYPE_ALIASES = {
     "wait_pixel": "wait_until_pixel",
     "wait_until_pixel": "wait_until_pixel",
     "pixel": "wait_until_pixel",
+    "wait_image": "wait_until_image",
+    "wait_until_image": "wait_until_image",
+    "image": "wait_until_image",
 }
 
 PARAM_ALIASES = {
@@ -61,6 +66,7 @@ PARAM_ALIASES = {
     "check": "check_interval_seconds",
     "interval_seconds": "check_interval_seconds",
     "interval_ms": "check_interval_ms",
+    "file": "template",
 }
 
 
@@ -243,6 +249,11 @@ def apply_step_defaults(step: dict[str, Any], defaults: dict[str, Any]) -> dict[
         merged.setdefault("tolerance", 10)
         merged.setdefault("check_interval_seconds", 0.2)
         merged.setdefault("relative_to_window", False)
+    elif step_type == "wait_until_image":
+        merged.setdefault("confidence", 0.9)
+        merged.setdefault("check_interval_seconds", 0.3)
+        merged.setdefault("grayscale", True)
+        merged.setdefault("relative_to_window", False)
 
     if step_type == "mouse_hold":
         merged.setdefault("hold_seconds", 0.02)
@@ -259,6 +270,13 @@ def apply_step_defaults(step: dict[str, Any], defaults: dict[str, Any]) -> dict[
             raise ValueError("wait_until_pixel step requires rgb=r,g,b.")
         merged["rgb"] = tuple(int(channel) for channel in merged["rgb"])
         merged["tolerance"] = int(merged.get("tolerance", 10))
+    if step_type == "wait_until_image":
+        if not str(merged.get("template", "")).strip():
+            raise ValueError("wait_until_image step requires template=<filename>.")
+        if "x" not in merged or "y" not in merged or "w" not in merged or "h" not in merged:
+            raise ValueError("wait_until_image step requires x, y, w, h.")
+        merged["confidence"] = float(merged.get("confidence", 0.9))
+        merged["grayscale"] = to_bool(merged.get("grayscale", True))
 
     return merged
 
@@ -320,6 +338,7 @@ def load_config() -> dict[str, Any]:
     for key in ("mouse_click", "mouse_hold", "key_tap", "wait"):
         defaults.setdefault(key, {})
     defaults.setdefault("wait_until_pixel", {})
+    defaults.setdefault("wait_until_image", {})
 
     config["workflow_path"] = str(workflow_path)
     config["steps"] = load_workflow(workflow_path, defaults)
@@ -408,6 +427,49 @@ def resolve_screen_point(hwnd: int, step: dict[str, Any]) -> tuple[int, int]:
     return x, y
 
 
+def resolve_screen_rect(hwnd: int, step: dict[str, Any]) -> tuple[int, int, int, int]:
+    x, y = resolve_screen_point(hwnd, step)
+    width = int(step["w"])
+    height = int(step["h"])
+    if "base_width" in step and "base_height" in step:
+        screen_width, screen_height = pyautogui.size()
+        width = round(width * screen_width / int(step["base_width"]))
+        height = round(height * screen_height / int(step["base_height"]))
+    return x, y, width, height
+
+
+def load_reference_template(step: dict[str, Any]) -> Any:
+    import cv2  # type: ignore
+
+    template_path = PIC_DIR / str(step["template"])
+    if not template_path.exists():
+        raise FileNotFoundError(f"Missing template image: {template_path}")
+
+    grayscale = to_bool(step.get("grayscale", True))
+    x = int(step["x"])
+    y = int(step["y"])
+    width = int(step["w"])
+    height = int(step["h"])
+    base_width = int(step.get("base_width", 0))
+    base_height = int(step.get("base_height", 0))
+    cache_key = (str(template_path), x, y, width, height, grayscale, base_width, base_height)
+    if cache_key in IMAGE_TEMPLATE_CACHE:
+        return IMAGE_TEMPLATE_CACHE[cache_key]
+
+    image = cv2.imread(str(template_path), cv2.IMREAD_COLOR)
+    if image is None:
+        raise ValueError(f"Failed to load template image: {template_path}")
+
+    cropped = image[y : y + height, x : x + width]
+    if cropped.size == 0:
+        raise ValueError(f"Template crop is empty: {template_path}")
+    if grayscale:
+        cropped = cv2.cvtColor(cropped, cv2.COLOR_BGR2GRAY)
+
+    IMAGE_TEMPLATE_CACHE[cache_key] = cropped
+    return cropped
+
+
 def interruptible_sleep(stop_event: threading.Event | None, seconds: float, bot: "Bot | None" = None) -> None:
     deadline = time.monotonic() + max(0.0, seconds)
     while time.monotonic() < deadline:
@@ -445,6 +507,46 @@ def perform_wait_until_pixel(hwnd: int, step: dict[str, Any], stop_event: thread
         if color_matches(actual, expected, tolerance):
             logger.info("Pixel matched at %s,%s: %s", x, y, actual)
             return
+        interruptible_sleep(stop_event, check_interval_seconds, bot)
+
+
+def perform_wait_until_image(hwnd: int, step: dict[str, Any], stop_event: threading.Event, bot: "Bot") -> None:
+    import cv2  # type: ignore
+    import numpy as np  # type: ignore
+    from PIL import ImageGrab  # type: ignore
+
+    left, top, width, height = resolve_screen_rect(hwnd, step)
+    confidence = float(step.get("confidence", 0.9))
+    grayscale = to_bool(step.get("grayscale", True))
+    check_interval_seconds = float(step.get("check_interval_seconds", 0.3))
+    template = load_reference_template(step)
+
+    logger.info(
+        "Wait-until-image: %s region=%s,%s,%s,%s confidence=%.3f",
+        step["template"],
+        left,
+        top,
+        width,
+        height,
+        confidence,
+    )
+    while not stop_event.is_set():
+        if bot.check_safety_stop():
+            return
+
+        screenshot = ImageGrab.grab(bbox=(left, top, left + width, top + height))
+        frame = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+        if grayscale:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        if frame.shape[:2] != template.shape[:2]:
+            frame = cv2.resize(frame, (template.shape[1], template.shape[0]))
+
+        score = float(cv2.matchTemplate(frame, template, cv2.TM_CCOEFF_NORMED)[0][0])
+        if score >= confidence:
+            logger.info("Image matched: %s score=%.4f", step["template"], score)
+            return
+
         interruptible_sleep(stop_event, check_interval_seconds, bot)
 
 
@@ -506,6 +608,8 @@ def execute_step(hwnd: int, step: dict[str, Any], stop_event: threading.Event, b
         perform_wait(step, stop_event, bot)
     elif step_type == "wait_until_pixel":
         perform_wait_until_pixel(hwnd, step, stop_event, bot)
+    elif step_type == "wait_until_image":
+        perform_wait_until_image(hwnd, step, stop_event, bot)
     elif step_type == "key_tap":
         perform_key_tap(step, stop_event, bot)
     elif step_type == "mouse_click":

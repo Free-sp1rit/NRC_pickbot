@@ -2,7 +2,9 @@
 # Outer loop is automatic: the whole file runs forever.
 # `repeat 30` means: run the block 30 times.
 # `for_seconds 30` means: keep running the block for about 30 seconds.
-# `wait_pixel x=100 y=200 rgb=255,255,255 tolerance=10` waits until the pixel matches.
+# `wait_image template=主场景.png x=1600 y=0 w=760 h=220 base=2560x1440` waits for a scene marker.
+
+wait_image template=主场景.png x=1600 y=0 w=760 h=220 base=2560x1440 confidence=0.88
 
 key 1
 hold position=cursor
@@ -17,7 +19,7 @@ hold position=cursor
 key 6
 hold position=cursor
 
-for_seconds 30
+repeat 30
 key tab
 key 2
 key esc
@@ -30,8 +32,9 @@ key 6
 hold position=cursor
 end
 
+key m
+wait_image template=切换页.png x=0 y=0 w=460 h=220 base=2560x1440 confidence=0.92
 hold x=2340 y=1340 base=2560x1440
 hold x=2340 y=1340 base=2560x1440
-wait 10
+wait_image template=副场景.png x=840 y=0 w=440 h=240 base=2560x1440 confidence=0.88
 key f12
-wait 10

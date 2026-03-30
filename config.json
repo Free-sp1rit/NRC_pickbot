@@ -50,6 +50,12 @@
       "tolerance": 10,
       "check_interval_seconds": 0.2,
       "relative_to_window": false
+    },
+    "wait_until_image": {
+      "confidence": 0.9,
+      "check_interval_seconds": 0.3,
+      "grayscale": true,
+      "relative_to_window": false
     }
   }
 }
