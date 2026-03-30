@@ -1,6 +1,6 @@
 param(
     [string]$InputScript = (Join-Path $PSScriptRoot "pickbot.ahk"),
-    [string]$OutputDir = (Join-Path $PSScriptRoot "dist"),
+    [string]$OutputDir = $PSScriptRoot,
     [string]$OutputName = "pickbot.exe"
 )
 
@@ -22,8 +22,6 @@ if (-not (Test-Path $InputScript)) {
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 $outputPath = Join-Path $OutputDir $OutputName
-$configSource = Join-Path $PSScriptRoot "config.ini"
-$configTarget = Join-Path $OutputDir "config.ini"
 
 & $compiler /in $InputScript /out $outputPath
 
@@ -31,9 +29,4 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-if (Test-Path $configSource) {
-    Copy-Item -Path $configSource -Destination $configTarget -Force
-}
-
-Write-Host "Built:  $outputPath"
-Write-Host "Config: $configTarget"
+Write-Host "Built: $outputPath"

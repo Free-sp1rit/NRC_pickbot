@@ -58,6 +58,7 @@ It copies only these files:
 - `README.md`
 - `pickbot.ahk`
 - `config.ini`
+- `build.ps1`
 - `run.ps1`
 
 It does not compile, and it does not modify any other Windows directory.
@@ -85,15 +86,15 @@ You can package the script as an `.exe`.
 - PowerShell:
   - Run `powershell -ExecutionPolicy Bypass -File .\build.ps1`
 
-The build script outputs files to `dist\`:
+For the release flow used by this repo, run `build.ps1` from `G:\MyBot\pickbot`.
+It writes the final executable directly into that same folder:
 
-- `dist\pickbot.exe`
-- `dist\config.ini`
+- `G:\MyBot\pickbot\pickbot.exe`
 
 Important:
 
 - The compiled EXE does not improve compatibility with anti-cheat or games which reject background input.
-- The EXE still reads `config.ini` from its own directory, so edit `dist\config.ini` after building.
+- The EXE still reads `config.ini` from its own directory, so keep `config.ini` next to `pickbot.exe`.
 - Compiling is mainly for convenience and distribution. It is not a stealth feature.
 
 ## Config format
@@ -133,4 +134,4 @@ Supported step types:
 - `ControlClick` uses `NA` mode and `SetControlDelay -1` to reduce focus stealing.
 - This MVP is best for deterministic timed tasks.
 - Start with the game in windowed or borderless mode while testing.
-- If Windows warns about running files directly from `\\wsl.localhost\...`, copy the folder or the `dist\` output to a normal Windows path such as `C:\Users\<you>\pickbot`.
+- If Windows warns about running files directly from `\\wsl.localhost\...`, use the released folder `G:\MyBot\pickbot` instead.

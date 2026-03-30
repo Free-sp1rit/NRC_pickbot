@@ -1,6 +1,13 @@
 param(
-    [string]$ScriptPath = (Join-Path $PSScriptRoot "pickbot.ahk")
+    [string]$ScriptPath = (Join-Path $PSScriptRoot "pickbot.ahk"),
+    [string]$ExePath = (Join-Path $PSScriptRoot "pickbot.exe")
 )
+
+if (Test-Path $ExePath) {
+    Start-Process -FilePath $ExePath -WorkingDirectory $PSScriptRoot
+    Write-Host "Started: $ExePath"
+    exit 0
+}
 
 $candidates = @(
     "C:\Program Files\AutoHotkey\AutoHotkey.exe",

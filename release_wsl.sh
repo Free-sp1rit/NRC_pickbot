@@ -8,6 +8,7 @@ FILES=(
   "README.md"
   "pickbot.ahk"
   "config.ini"
+  "build.ps1"
   "run.ps1"
 )
 
