@@ -53,15 +53,14 @@ From WSL, run:
 ./release_wsl.sh
 ```
 
-It copies only these files:
+It stages the build in the target directory, compiles the executable there, and leaves only these release artifacts:
 
-- `README.md`
-- `pickbot.ahk`
+- `pickbot.exe`
 - `config.ini`
-- `build.ps1`
-- `run.ps1`
+- `USER_GUIDE.md`
+- `README.md`
 
-It does not compile, and it does not modify any other Windows directory.
+It does not modify any other Windows directory.
 
 ## Quick start
 
@@ -90,6 +89,8 @@ For the release flow used by this repo, run `build.ps1` from `G:\MyBot\pickbot`.
 It writes the final executable directly into that same folder:
 
 - `G:\MyBot\pickbot\pickbot.exe`
+
+For the default release workflow, use `./release_wsl.sh` in WSL. It compiles in place and then removes temporary build files from the Windows release folder.
 
 Important:
 
