@@ -67,26 +67,28 @@ def find_target_window(process_name: str, title_contains: str) -> int:
     matches: list[int] = []
 
     def callback(hwnd: int, _: Any) -> bool:
-        if not win32gui.IsWindowVisible(hwnd):
-            return True
-
-        title = win32gui.GetWindowText(hwnd)
-        if title_contains and title_contains not in title.lower():
-            return True
-
-        _, pid = win32process.GetWindowThreadProcessId(hwnd)
         try:
+            if not win32gui.IsWindowVisible(hwnd):
+                return True
+
+            title = win32gui.GetWindowText(hwnd)
+            if title_contains and title_contains not in title.lower():
+                return True
+
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
             proc = psutil.Process(pid)
-        except psutil.Error:
+            if process_name and proc.name().lower() != process_name:
+                return True
+
+            matches.append(hwnd)
+            return False
+        except Exception:
             return True
 
-        if process_name and proc.name().lower() != process_name:
-            return True
-
-        matches.append(hwnd)
-        return False
-
-    win32gui.EnumWindows(callback, None)
+    try:
+        win32gui.EnumWindows(callback, None)
+    except Exception as exc:
+        logger.warning("EnumWindows failed while searching for target window: %s", exc)
     return matches[0] if matches else 0
 
 
@@ -246,10 +248,15 @@ class Bot:
 
             cycle_started = time.monotonic()
             target = config["target"]
-            hwnd = find_target_window(
-                str(target.get("process_name", "")),
-                str(target.get("window_title_contains", "")),
-            )
+            try:
+                hwnd = find_target_window(
+                    str(target.get("process_name", "")),
+                    str(target.get("window_title_contains", "")),
+                )
+            except Exception as exc:
+                logger.exception("Target discovery failed: %s", exc)
+                time.sleep(0.5)
+                continue
 
             if not hwnd:
                 logger.info("Target window not found.")
