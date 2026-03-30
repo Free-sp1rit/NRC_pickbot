@@ -23,6 +23,24 @@ If the game only accepts raw or exclusive foreground input, background delivery 
 - Windows
 - AutoHotkey v2
 
+## Run from Win11
+
+This repository currently lives in WSL. On your Windows 11 side, the same folder is available at:
+
+`\\wsl.localhost\Ubuntu\home\yimg\code\pickbot`
+
+You can run the bot in either of these ways:
+
+1. Install AutoHotkey v2 on Windows.
+2. Open the folder above in Explorer.
+3. Edit `config.ini`.
+4. Run the script:
+   - Double-click `pickbot.ahk`, or
+   - Right-click `pickbot.ahk` and choose Run Script, or
+   - Run `powershell -ExecutionPolicy Bypass -File .\run.ps1`
+
+The simplest path is to leave the source code in WSL and only execute it from Windows.
+
 ## Quick start
 
 1. Install AutoHotkey v2.
@@ -35,6 +53,27 @@ If the game only accepts raw or exclusive foreground input, background delivery 
    - `F8`: start or stop the loop
    - `F9`: reload `config.ini`
    - `F10`: exit
+
+## Build an EXE
+
+You can package the script as an `.exe`.
+
+- Windows Explorer:
+  - Right-click `pickbot.ahk`
+  - Choose `Compile Script`
+- PowerShell:
+  - Run `powershell -ExecutionPolicy Bypass -File .\build.ps1`
+
+The build script outputs files to `dist\`:
+
+- `dist\pickbot.exe`
+- `dist\config.ini`
+
+Important:
+
+- The compiled EXE does not improve compatibility with anti-cheat or games which reject background input.
+- The EXE still reads `config.ini` from its own directory, so edit `dist\config.ini` after building.
+- Compiling is mainly for convenience and distribution. It is not a stealth feature.
 
 ## Config format
 
@@ -73,3 +112,4 @@ Supported step types:
 - `ControlClick` uses `NA` mode and `SetControlDelay -1` to reduce focus stealing.
 - This MVP is best for deterministic timed tasks.
 - Start with the game in windowed or borderless mode while testing.
+- If Windows warns about running files directly from `\\wsl.localhost\...`, copy the folder or the `dist\` output to a normal Windows path such as `C:\Users\<you>\pickbot`.
