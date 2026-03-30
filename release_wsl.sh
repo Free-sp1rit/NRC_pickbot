@@ -22,6 +22,7 @@ trap cleanup_release_temp EXIT
 install -m 0644 "$REPO_DIR/pickbot.py" "$TARGET_DIR/pickbot.py"
 install -m 0644 "$REPO_DIR/requirements.txt" "$TARGET_DIR/requirements.txt"
 install -m 0644 "$REPO_DIR/config.json" "$TARGET_DIR/config.json"
+install -m 0644 "$REPO_DIR/flow.txt" "$TARGET_DIR/flow.txt"
 install -m 0644 "$REPO_DIR/README.md" "$TARGET_DIR/README.md"
 install -m 0644 "$REPO_DIR/USER_GUIDE.md" "$TARGET_DIR/USER_GUIDE.md"
 install -m 0644 "$REPO_DIR/build.ps1" "$TARGET_DIR/build.ps1"

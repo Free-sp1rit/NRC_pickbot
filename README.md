@@ -2,17 +2,21 @@
 
 Python-based foreground automation bot for Windows games.
 
-This version is focused on foreground input only and is driven entirely by `config.json`.
+This version is focused on foreground input only and uses:
+
+- `config.json` for project settings and default values
+- `flow.txt` for the short editable action flow
 
 ## What this does
 
 - Brings the target game window to the foreground.
 - Sends keyboard and mouse input with `pyautogui`.
-- Supports three primitive actions:
+- Supports four primitive actions:
   - `mouse_click`
   - `mouse_hold`
   - `key_tap`
-- Runs a step-by-step workflow from `config.json`.
+  - `wait`
+- Inserts a default wait between every two steps.
 - Uses hotkeys to start, stop, reload config, and exit.
 - Writes logs to `logs/pickbot.log`.
 
@@ -44,65 +48,92 @@ python pickbot.py
 Default hotkeys:
 
 - `F8`: start or stop
-- `F9`: reload `config.json`
+- `F9`: reload `config.json` and `flow.txt`
 - `F10`: exit
 
-## Config
+## Config Layout
 
-The bot reads `config.json`.
+The bot reads project settings from `config.json` and workflow steps from `flow.txt`.
 
-Minimal example:
+### config.json
+
+Use `config.json` for stable project settings and default step parameters.
 
 ```json
 {
   "target": {
     "process_name": "NRC-Win64-Shipping.exe",
+    "window_title_contains": "",
     "bring_to_front": true
   },
   "runtime": {
     "idle_poll_seconds": 0.2,
     "cycle_delay_seconds": 0.0
   },
-  "safety": {
-    "mouse_corner_stop": true,
-    "corner_size": 5
+  "workflow": {
+    "path": "flow.txt",
+    "default_between_seconds": 1.0
   },
-  "steps": [
-    {
-      "type": "mouse_hold",
-      "position": "cursor",
+  "defaults": {
+    "mouse_click": {
+      "position": "center",
+      "button": "left"
+    },
+    "mouse_hold": {
+      "position": "center",
       "button": "left",
-      "hold_seconds": 0.02,
-      "after_seconds": 1.0
+      "hold_seconds": 0.02
+    },
+    "key_tap": {
+      "key": "p",
+      "hold_seconds": 0.03
+    },
+    "wait": {
+      "seconds": 1.0
     }
-  ]
+  }
 }
 ```
 
-Supported step types:
+### flow.txt
 
-- `key_tap`: keyboard single tap
-- `mouse_click`: mouse single click
-- `mouse_hold`: mouse press and hold, default 20ms
+Use `flow.txt` for the step order.
 
-Common step fields:
+```txt
+# Default gap between steps comes from config.json
+hold position=cursor
+key p gap=0.5
+click x=960 y=540
+wait 2
+```
 
-- `repeat`: repeat count for the step
-- `repeat_interval_seconds`: delay between repeats inside one step
-- `after_seconds`: delay after the step finishes
+## Flow Syntax
 
-Mouse step fields:
+Supported steps:
 
-- `position: "cursor"`: use the current mouse position
-- `x` / `y`: fixed click point
-- `relative_to_window`: treat `x` and `y` as window-relative coordinates
-- `button`: `left`, `right`, `middle`
-- `hold_seconds`: only used by `mouse_hold`, defaults to `0.02`
+- `click`: mouse single click
+- `hold`: mouse hold, default 20ms
+- `key`: keyboard single tap
+- `wait`: explicit wait step
 
-Keyboard step fields:
+Common per-step overrides:
 
-- `key`: key name such as `p`, `space`, `f1`
-- `hold_seconds`: key down duration, defaults to `0.03`
+- `gap=0.5`: wait time before the next step, overriding `workflow.default_between_seconds`
+- `repeat=3`
+- `repeat_interval_seconds=0.05`
+
+Mouse overrides:
+
+- `position=center|cursor|window_center`
+- `x=960 y=540`
+- `relative_to_window=true|false`
+- `button=left|right|middle`
+- `hold_ms=20` or `hold_seconds=0.02`
+
+Keyboard overrides:
+
+- `key p`
+- `hold_ms=30` or `hold_seconds=0.03`
 
 ## Notes
 
@@ -133,5 +164,6 @@ Final release files are intended to be:
 
 - `pickbot.exe`
 - `config.json`
+- `flow.txt`
 - `README.md`
 - `USER_GUIDE.md`

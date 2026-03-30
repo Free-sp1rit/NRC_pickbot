@@ -1,0 +1,22 @@
+# One step per line.
+# Supported steps:
+#   click
+#   hold
+#   key
+#   wait
+#
+# Common overrides:
+#   gap=0.5
+#   repeat=3
+#
+# Mouse overrides:
+#   position=center|cursor|window_center
+#   x=960 y=540 relative_to_window=true|false
+#   button=left|right|middle
+#   hold_ms=20
+#
+# Keyboard overrides:
+#   key p
+#   hold_ms=30
+
+hold position=cursor

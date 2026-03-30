@@ -17,15 +17,34 @@
     "reload": "f9",
     "exit": "f10"
   },
-  "steps": [
-    {
-      "type": "mouse_hold",
-      "position": "cursor",
+  "workflow": {
+    "path": "flow.txt",
+    "default_between_seconds": 1.0
+  },
+  "defaults": {
+    "mouse_click": {
+      "position": "center",
+      "button": "left",
+      "repeat": 1,
+      "repeat_interval_seconds": 0.05,
+      "relative_to_window": false
+    },
+    "mouse_hold": {
+      "position": "center",
       "button": "left",
       "hold_seconds": 0.02,
       "repeat": 1,
       "repeat_interval_seconds": 0.05,
-      "after_seconds": 1.0
+      "relative_to_window": false
+    },
+    "key_tap": {
+      "key": "p",
+      "hold_seconds": 0.03,
+      "repeat": 1,
+      "repeat_interval_seconds": 0.05
+    },
+    "wait": {
+      "seconds": 1.0
     }
-  ]
+  }
 }

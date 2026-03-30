@@ -2,14 +2,15 @@
 
 ## Current runtime
 
-The primary runtime is now Python, not AutoHotkey.
+The primary runtime is Python.
 
 ## How to use
 
 1. Install Python 3.10 or newer on Windows.
 2. Install the dependencies from `requirements.txt`.
-3. Edit `config.json`.
-4. Run:
+3. Edit `config.json` for project settings.
+4. Edit `flow.txt` for the action sequence.
+5. Run:
 
 ```powershell
 python pickbot.py
@@ -18,7 +19,7 @@ python pickbot.py
 ## Default hotkeys
 
 - `F8`: start or stop
-- `F9`: reload `config.json`
+- `F9`: reload `config.json` and `flow.txt`
 - `F10`: exit
 
 ## Emergency stop
@@ -29,5 +30,14 @@ python pickbot.py
 
 - This is foreground automation and will take control of keyboard and mouse input while running.
 - The game should be in windowed or borderless mode during setup and testing.
-- The current program only uses three action types: `mouse_click`, `mouse_hold`, and `key_tap`.
+- The current program uses four action types: `mouse_click`, `mouse_hold`, `key_tap`, and `wait`.
 - `mouse_hold` defaults to 20ms if you do not override `hold_seconds`.
+- There is a default wait between every two steps. You can change it in `config.json`.
+- `flow.txt` is intentionally short. Example:
+
+```txt
+hold position=cursor
+key p gap=0.5
+wait 1.5
+click x=960 y=540
+```

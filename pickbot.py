@@ -2,15 +2,17 @@ from __future__ import annotations
 
 import json
 import logging
+import shlex
 import sys
 import threading
 import time
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 import keyboard
-import pyautogui
 import psutil
+import pyautogui
 import win32con
 import win32gui
 import win32process
@@ -26,6 +28,32 @@ pyautogui.PAUSE = 0
 
 logger = logging.getLogger("pickbot")
 HOTKEY_HANDLES: list[Any] = []
+
+STEP_TYPE_ALIASES = {
+    "click": "mouse_click",
+    "mouse_click": "mouse_click",
+    "hold": "mouse_hold",
+    "mouse_hold": "mouse_hold",
+    "key": "key_tap",
+    "tap": "key_tap",
+    "key_tap": "key_tap",
+    "wait": "wait",
+    "sleep": "wait",
+}
+
+PARAM_ALIASES = {
+    "btn": "button",
+    "ms": "hold_ms",
+    "hold": "hold_seconds",
+    "hold_ms": "hold_ms",
+    "interval": "repeat_interval_seconds",
+    "repeat_interval": "repeat_interval_seconds",
+    "gap": "gap_seconds",
+    "wait": "gap_seconds",
+    "wait_ms": "gap_ms",
+    "pos": "position",
+    "rel": "relative_to_window",
+}
 
 
 def configure_logging() -> None:
@@ -49,6 +77,138 @@ def current_mouse_position() -> tuple[int, int]:
     return int(pos.x), int(pos.y)
 
 
+def parse_scalar(value: str) -> Any:
+    lowered = value.strip().lower()
+    if lowered in {"true", "yes", "on"}:
+        return True
+    if lowered in {"false", "no", "off"}:
+        return False
+
+    try:
+        if "." in value:
+            return float(value)
+        return int(value)
+    except ValueError:
+        return value
+
+
+def to_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "yes", "on", "1"}:
+            return True
+        if lowered in {"false", "no", "off", "0"}:
+            return False
+    return bool(value)
+
+
+def normalize_seconds_fields(step: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(step)
+
+    if "hold_ms" in normalized:
+        normalized["hold_seconds"] = float(normalized.pop("hold_ms")) / 1000.0
+    if "gap_ms" in normalized:
+        normalized["gap_seconds"] = float(normalized.pop("gap_ms")) / 1000.0
+    if "seconds" in normalized:
+        normalized["seconds"] = float(normalized["seconds"])
+    if "hold_seconds" in normalized:
+        normalized["hold_seconds"] = float(normalized["hold_seconds"])
+    if "repeat_interval_seconds" in normalized:
+        normalized["repeat_interval_seconds"] = float(normalized["repeat_interval_seconds"])
+    if "gap_seconds" in normalized:
+        normalized["gap_seconds"] = float(normalized["gap_seconds"])
+
+    return normalized
+
+
+def parse_workflow_line(line: str, line_number: int) -> dict[str, Any]:
+    tokens = shlex.split(line, comments=False, posix=True)
+    if not tokens:
+        raise ValueError(f"Line {line_number}: empty workflow line.")
+
+    raw_type = tokens[0].lower()
+    step_type = STEP_TYPE_ALIASES.get(raw_type)
+    if step_type is None:
+        raise ValueError(f"Line {line_number}: unsupported step type '{tokens[0]}'.")
+
+    step: dict[str, Any] = {"type": step_type}
+    positional: list[str] = []
+
+    for token in tokens[1:]:
+        if "=" in token:
+            key, value = token.split("=", 1)
+            normalized_key = PARAM_ALIASES.get(key.lower(), key.lower())
+            step[normalized_key] = parse_scalar(value)
+        else:
+            positional.append(token)
+
+    if step_type == "key_tap":
+        if positional:
+            step["key"] = positional[0]
+    elif step_type == "wait":
+        if positional:
+            step["seconds"] = parse_scalar(positional[0])
+    elif positional:
+        position = positional[0].lower()
+        if position in {"cursor", "center", "window_center"}:
+            step["position"] = position
+
+    return normalize_seconds_fields(step)
+
+
+def apply_step_defaults(step: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
+    step_type = str(step["type"])
+    merged = deepcopy(defaults.get(step_type, {}))
+    merged.update(step)
+    merged["type"] = step_type
+    merged = normalize_seconds_fields(merged)
+
+    if step_type in {"mouse_click", "mouse_hold"}:
+        merged.setdefault("position", "center")
+        merged.setdefault("button", "left")
+        merged.setdefault("repeat", 1)
+        merged.setdefault("repeat_interval_seconds", 0.05)
+        merged.setdefault("relative_to_window", False)
+    elif step_type == "key_tap":
+        merged.setdefault("hold_seconds", 0.03)
+        merged.setdefault("repeat", 1)
+        merged.setdefault("repeat_interval_seconds", 0.05)
+    elif step_type == "wait":
+        merged.setdefault("seconds", 1.0)
+
+    if step_type == "mouse_hold":
+        merged.setdefault("hold_seconds", 0.02)
+
+    if step_type == "key_tap" and not str(merged.get("key", "")).strip():
+        raise ValueError("key_tap step is missing key.")
+
+    if step_type == "wait" and float(merged.get("seconds", 0.0)) < 0:
+        raise ValueError("wait step seconds must be >= 0.")
+
+    return merged
+
+
+def load_workflow(workflow_path: Path, defaults: dict[str, Any]) -> list[dict[str, Any]]:
+    if not workflow_path.exists():
+        raise FileNotFoundError(f"Missing workflow file next to the app: {workflow_path}")
+
+    steps: list[dict[str, Any]] = []
+    with workflow_path.open("r", encoding="utf-8") as handle:
+        for line_number, raw_line in enumerate(handle, start=1):
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            step = parse_workflow_line(line, line_number)
+            steps.append(apply_step_defaults(step, defaults))
+
+    if not steps:
+        raise ValueError(f"Workflow file is empty: {workflow_path}")
+
+    return steps
+
+
 def load_config() -> dict[str, Any]:
     if not CONFIG_PATH.exists():
         raise FileNotFoundError(f"Missing config.json next to the app: {CONFIG_PATH}")
@@ -56,10 +216,17 @@ def load_config() -> dict[str, Any]:
     with CONFIG_PATH.open("r", encoding="utf-8") as handle:
         config = json.load(handle)
 
-    steps = config.get("steps", [])
-    if not isinstance(steps, list) or not steps:
-        raise ValueError("config.json must contain a non-empty steps array.")
+    workflow = config.setdefault("workflow", {})
+    workflow_path = APP_DIR / str(workflow.get("path", "flow.txt"))
+    workflow["path"] = workflow_path.name
+    workflow.setdefault("default_between_seconds", 1.0)
 
+    defaults = config.setdefault("defaults", {})
+    for key in ("mouse_click", "mouse_hold", "key_tap", "wait"):
+        defaults.setdefault(key, {})
+
+    config["workflow_path"] = str(workflow_path)
+    config["steps"] = load_workflow(workflow_path, defaults)
     return config
 
 
@@ -107,16 +274,24 @@ def window_rect(hwnd: int) -> tuple[int, int, int, int]:
 
 
 def resolve_click_point(hwnd: int, step: dict[str, Any]) -> tuple[int, int]:
-    if str(step.get("position", "")).lower() == "cursor":
-        return current_mouse_position()
+    if "x" in step and "y" in step:
+        x = int(step["x"])
+        y = int(step["y"])
+        if to_bool(step.get("relative_to_window", False)):
+            left, top, _, _ = window_rect(hwnd)
+            x += left
+            y += top
+        return x, y
 
-    x = int(step["x"])
-    y = int(step["y"])
-    if bool(step.get("relative_to_window", True)):
-        left, top, _, _ = window_rect(hwnd)
-        x += left
-        y += top
-    return x, y
+    position = str(step.get("position", "center")).lower()
+    if position == "cursor":
+        return current_mouse_position()
+    if position == "window_center":
+        left, top, right, bottom = window_rect(hwnd)
+        return int((left + right) / 2), int((top + bottom) / 2)
+
+    width, height = pyautogui.size()
+    return int(width / 2), int(height / 2)
 
 
 def interruptible_sleep(stop_event: threading.Event | None, seconds: float, bot: "Bot | None" = None) -> None:
@@ -130,6 +305,12 @@ def interruptible_sleep(stop_event: threading.Event | None, seconds: float, bot:
         if remaining <= 0:
             return
         time.sleep(min(0.05, remaining))
+
+
+def perform_wait(step: dict[str, Any], stop_event: threading.Event, bot: "Bot") -> None:
+    seconds = float(step.get("seconds", 0.0))
+    logger.info("Wait: %.3fs", seconds)
+    interruptible_sleep(stop_event, seconds, bot)
 
 
 def perform_key_tap(step: dict[str, Any], stop_event: threading.Event, bot: "Bot") -> None:
@@ -186,7 +367,9 @@ def perform_mouse_hold(hwnd: int, step: dict[str, Any], stop_event: threading.Ev
 def execute_step(hwnd: int, step: dict[str, Any], stop_event: threading.Event, bot: "Bot") -> None:
     step_type = str(step["type"]).lower()
 
-    if step_type == "key_tap":
+    if step_type == "wait":
+        perform_wait(step, stop_event, bot)
+    elif step_type == "key_tap":
         perform_key_tap(step, stop_event, bot)
     elif step_type == "mouse_click":
         perform_mouse_click(hwnd, step, stop_event, bot)
@@ -194,10 +377,6 @@ def execute_step(hwnd: int, step: dict[str, Any], stop_event: threading.Event, b
         perform_mouse_hold(hwnd, step, stop_event, bot)
     else:
         raise ValueError(f"Unsupported step type: {step_type}")
-
-    after_seconds = float(step.get("after_seconds", 0.0))
-    if after_seconds > 0:
-        interruptible_sleep(stop_event, after_seconds, bot)
 
 
 class Bot:
@@ -232,7 +411,7 @@ class Bot:
 
     def check_safety_stop(self) -> bool:
         safety = self.config.get("safety", {})
-        if not bool(safety.get("mouse_corner_stop", True)):
+        if not to_bool(safety.get("mouse_corner_stop", True)):
             return False
 
         corner_size = int(safety.get("corner_size", 5))
@@ -269,17 +448,25 @@ class Bot:
                 interruptible_sleep(self.stop_event, 0.5)
                 continue
 
-            if bool(target.get("bring_to_front", True)):
+            if to_bool(target.get("bring_to_front", True)):
                 try:
                     activate_window(hwnd)
                 except Exception as exc:
                     logger.warning("Failed to activate target window: %s", exc)
 
             try:
-                for step in config["steps"]:
+                steps = config["steps"]
+                default_between = float(config.get("workflow", {}).get("default_between_seconds", 1.0))
+                for index, step in enumerate(steps):
                     if self.check_safety_stop() or self.stop_event.is_set():
                         break
                     execute_step(hwnd, step, self.stop_event, self)
+                    if self.check_safety_stop() or self.stop_event.is_set():
+                        break
+                    if index + 1 < len(steps):
+                        gap_seconds = float(step.get("gap_seconds", default_between))
+                        if gap_seconds > 0:
+                            interruptible_sleep(self.stop_event, gap_seconds, self)
                 else:
                     logger.info("Cycle completed.")
             except Exception as exc:
@@ -315,6 +502,7 @@ def main() -> None:
     logger.info("Pickbot ready.")
     logger.info("App dir: %s", APP_DIR)
     logger.info("Config path: %s", CONFIG_PATH)
+    logger.info("Workflow path: %s", bot.config.get("workflow_path", APP_DIR / "flow.txt"))
     logger.info(
         "Hotkeys: toggle=%s reload=%s exit=%s",
         bot.config.get("hotkeys", {}).get("toggle", "f8"),
