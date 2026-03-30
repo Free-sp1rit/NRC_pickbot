@@ -6,7 +6,12 @@ param(
 
 $toolSourceDir = Join-Path $PSScriptRoot "compile"
 $sourceCompiler = Join-Path $toolSourceDir "Ahk2Exe.exe"
-$sourceRuntime = Join-Path $toolSourceDir "AutoHotkey.exe"
+$runtimeCandidates = @(
+    (Join-Path $toolSourceDir "AutoHotkey.exe"),
+    (Join-Path $toolSourceDir "AutoHotkey64.exe"),
+    (Join-Path $toolSourceDir "AutoHotkey32.exe")
+)
+$sourceRuntime = $runtimeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 $toolRoot = Join-Path $PSScriptRoot "_compile_runtime"
 $toolCompilerDir = Join-Path $toolRoot "Compiler"
 $compiler = Join-Path $toolCompilerDir "Ahk2Exe.exe"
@@ -15,8 +20,8 @@ if (-not (Test-Path $sourceCompiler)) {
     throw "Ahk2Exe.exe was not found at $sourceCompiler."
 }
 
-if (-not (Test-Path $sourceRuntime)) {
-    throw "AutoHotkey.exe was not found at $sourceRuntime."
+if (-not $sourceRuntime) {
+    throw "AutoHotkey runtime was not found in $toolSourceDir. Expected AutoHotkey.exe or AutoHotkey64.exe."
 }
 
 $runtimeVersion = (Get-Item $sourceRuntime).VersionInfo.ProductVersion
