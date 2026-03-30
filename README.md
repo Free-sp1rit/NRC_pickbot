@@ -67,7 +67,7 @@ It does not compile, and it does not modify any other Windows directory.
 1. Install AutoHotkey v2.
 2. Edit `config.ini`.
 3. Change `WinTitle` to your game window rule, for example:
-   - `ahk_exe Game.exe`
+   - `ahk_exe NRC-Win64-Shipping.exe`
    - `Game Window Title`
 4. Run `pickbot.ahk`.
 5. Use the hotkeys:
@@ -102,7 +102,7 @@ The script reads these sections:
 
 ```ini
 [Target]
-WinTitle=ahk_exe notepad.exe
+WinTitle=ahk_exe NRC-Win64-Shipping.exe
 
 [Loop]
 IntervalMs=3000
