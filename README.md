@@ -115,6 +115,7 @@ Supported steps:
 - `hold`: mouse hold, default 20ms
 - `key`: keyboard single tap
 - `wait`: explicit wait step
+- `repeat`: run a block a fixed number of times, then close it with `end`
 - `for_seconds`: keep running a block until the duration is reached, then close it with `end`
 
 Common per-step overrides:
@@ -143,6 +144,15 @@ Timed block example:
 for_seconds 30
 key tab
 wait 15
+end
+```
+
+Count block example:
+
+```txt
+repeat 30
+key tab
+key 2
 end
 ```
 

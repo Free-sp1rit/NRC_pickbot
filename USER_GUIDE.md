@@ -34,6 +34,7 @@ python pickbot.py
 - `mouse_hold` defaults to 20ms if you do not override `hold_seconds`.
 - There is a default wait between every two steps. You can change it in `config.json`.
 - `for_seconds ... end` can be used for a timed sub-loop.
+- `repeat ... end` can be used for a count-based sub-loop.
 - `base=2560x1440` can scale coordinates from a fixed reference resolution.
 - `flow.txt` is intentionally short. Example:
 

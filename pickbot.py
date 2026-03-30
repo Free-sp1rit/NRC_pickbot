@@ -138,6 +138,10 @@ def parse_workflow_line(line: str, line_number: int) -> dict[str, Any]:
         raise ValueError(f"Line {line_number}: empty workflow line.")
 
     raw_type = tokens[0].lower()
+    if raw_type in {"repeat", "repeat_count"}:
+        if len(tokens) < 2:
+            raise ValueError(f"Line {line_number}: repeat requires a count.")
+        return {"type": "repeat", "count": int(parse_scalar(tokens[1]))}
     if raw_type in {"for_seconds", "repeat_for_seconds"}:
         if len(tokens) < 2:
             raise ValueError(f"Line {line_number}: for_seconds requires a duration.")
@@ -182,10 +186,19 @@ def parse_workflow_line(line: str, line_number: int) -> dict[str, Any]:
 
 def apply_step_defaults(step: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
     step_type = str(step["type"])
+    if step_type == "repeat":
+        merged = dict(step)
+        merged["count"] = int(merged.get("count", 0))
+        merged["steps"] = list(merged.get("steps", []))
+        if merged["count"] < 0:
+            raise ValueError("repeat block count must be >= 0.")
+        return merged
     if step_type == "for_seconds":
         merged = dict(step)
         merged["seconds"] = float(merged.get("seconds", 0.0))
         merged["steps"] = list(merged.get("steps", []))
+        if merged["seconds"] < 0:
+            raise ValueError("for_seconds block seconds must be >= 0.")
         return merged
 
     merged = deepcopy(defaults.get(step_type, {}))
@@ -235,13 +248,13 @@ def load_workflow(workflow_path: Path, defaults: dict[str, Any]) -> list[dict[st
 
             if step_type == "end":
                 if not stack:
-                    raise ValueError(f"Line {line_number}: unexpected end without matching for_seconds.")
+                    raise ValueError(f"Line {line_number}: unexpected end without matching block.")
                 completed = stack.pop()
                 target_steps = root_steps if not stack else stack[-1]["steps"]
                 target_steps.append(apply_step_defaults(completed, defaults))
                 continue
 
-            if step_type == "for_seconds":
+            if step_type in {"for_seconds", "repeat"}:
                 step["steps"] = []
                 stack.append(step)
                 continue
@@ -251,7 +264,7 @@ def load_workflow(workflow_path: Path, defaults: dict[str, Any]) -> list[dict[st
             target_steps.append(normalized_step)
 
     if stack:
-        raise ValueError("Workflow file is missing end for a for_seconds block.")
+        raise ValueError("Workflow file is missing end for a block.")
 
     if not root_steps:
         raise ValueError(f"Workflow file is empty: {workflow_path}")
@@ -439,7 +452,16 @@ def execute_plan(hwnd: int, steps: list[dict[str, Any]], stop_event: threading.E
             return False
 
         step_type = str(step["type"]).lower()
-        if step_type == "for_seconds":
+        if step_type == "repeat":
+            count = int(step.get("count", 0))
+            logger.info("Repeat block started: %d", count)
+            for _ in range(count):
+                if bot.check_safety_stop() or stop_event.is_set():
+                    return False
+                if not execute_plan(hwnd, list(step.get("steps", [])), stop_event, bot, default_between):
+                    return False
+            logger.info("Repeat block completed: %d", count)
+        elif step_type == "for_seconds":
             seconds = float(step.get("seconds", 0.0))
             deadline = time.monotonic() + max(0.0, seconds)
             logger.info("For-seconds block started: %.3fs", seconds)

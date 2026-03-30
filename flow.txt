@@ -1,5 +1,6 @@
 # Default gap between steps: 0.5s
 # Outer loop is automatic: the whole file runs forever.
+# `repeat 30` means: run the block 30 times.
 # `for_seconds 30` means: keep running the block for about 30 seconds.
 
 key 1
