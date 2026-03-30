@@ -2,14 +2,17 @@
 
 Python-based foreground automation bot for Windows games.
 
-This version is designed for games which ignore background window messages and only react to real foreground keyboard and mouse input. It also supports template-based screenshot matching for simple screen-state checks.
+This version is focused on foreground input only and is driven entirely by `config.json`.
 
 ## What this does
 
 - Brings the target game window to the foreground.
-- Sends keyboard and mouse input with `pyautogui` by default.
-- Captures screen regions with `pyautogui` by default.
-- Matches templates with OpenCV.
+- Sends keyboard and mouse input with `pyautogui`.
+- Supports three primitive actions:
+  - `mouse_click`
+  - `mouse_hold`
+  - `key_tap`
+- Runs a step-by-step workflow from `config.json`.
 - Uses hotkeys to start, stop, reload config, and exit.
 - Writes logs to `logs/pickbot.log`.
 
@@ -56,14 +59,9 @@ Minimal example:
     "process_name": "NRC-Win64-Shipping.exe",
     "bring_to_front": true
   },
-  "input": {
-    "backend": "pyautogui"
-  },
-  "capture": {
-    "backend": "pyautogui"
-  },
-  "loop": {
-    "interval_seconds": 1.0
+  "runtime": {
+    "idle_poll_seconds": 0.2,
+    "cycle_delay_seconds": 0.0
   },
   "safety": {
     "mouse_corner_stop": true,
@@ -71,9 +69,11 @@ Minimal example:
   },
   "steps": [
     {
-      "type": "click",
+      "type": "mouse_hold",
       "position": "cursor",
-      "button": "left"
+      "button": "left",
+      "hold_seconds": 0.02,
+      "after_seconds": 1.0
     }
   ]
 }
@@ -81,44 +81,28 @@ Minimal example:
 
 Supported step types:
 
-- `key`: press a foreground key such as `p`, `space`, `f1`
-- `click`: click a coordinate, optionally relative to the target window
-- `sleep`: wait for a number of seconds
-- `wait_image`: poll a region until a template image matches
+- `key_tap`: keyboard single tap
+- `mouse_click`: mouse single click
+- `mouse_hold`: mouse press and hold, default 20ms
 
-Backend fields:
+Common step fields:
 
-- `input.backend`: `pyautogui` or `pydirectinput`
-- `capture.backend`: `pyautogui` or `mss`
+- `repeat`: repeat count for the step
+- `repeat_interval_seconds`: delay between repeats inside one step
+- `after_seconds`: delay after the step finishes
 
-Click step options:
+Mouse step fields:
 
-- `position: "cursor"`: click the current mouse position without remapping
-- `x` / `y`: click a fixed point
-- `relative_to_window`: when using `x` / `y`, treat them as window-relative coordinates
-- `hold_seconds`: hold the mouse button before releasing
+- `position: "cursor"`: use the current mouse position
+- `x` / `y`: fixed click point
+- `relative_to_window`: treat `x` and `y` as window-relative coordinates
+- `button`: `left`, `right`, `middle`
+- `hold_seconds`: only used by `mouse_hold`, defaults to `0.02`
 
-Example `wait_image` step:
+Keyboard step fields:
 
-```json
-{
-  "type": "wait_image",
-  "template": "templates/battle_ready.png",
-  "region": [100, 100, 300, 200],
-  "threshold": 0.92,
-  "timeout_seconds": 5.0,
-  "relative_to_window": true
-}
-```
-
-## Template Matching
-
-Put template images in `templates/`.
-
-The `region` field is `[x, y, width, height]`.
-
-- If `relative_to_window` is `true`, the region is relative to the game window.
-- If `relative_to_window` is `false`, the region is absolute screen coordinates.
+- `key`: key name such as `p`, `space`, `f1`
+- `hold_seconds`: key down duration, defaults to `0.03`
 
 ## Notes
 
@@ -151,4 +135,3 @@ Final release files are intended to be:
 - `config.json`
 - `README.md`
 - `USER_GUIDE.md`
-- `templates\`

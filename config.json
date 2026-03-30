@@ -4,14 +4,9 @@
     "window_title_contains": "",
     "bring_to_front": true
   },
-  "input": {
-    "backend": "pyautogui"
-  },
-  "capture": {
-    "backend": "pyautogui"
-  },
-  "loop": {
-    "interval_seconds": 1.0
+  "runtime": {
+    "idle_poll_seconds": 0.2,
+    "cycle_delay_seconds": 0.0
   },
   "safety": {
     "mouse_corner_stop": true,
@@ -24,14 +19,13 @@
   },
   "steps": [
     {
-      "type": "click",
+      "type": "mouse_hold",
       "position": "cursor",
       "button": "left",
       "hold_seconds": 0.02,
-      "count": 1
+      "repeat": 1,
+      "repeat_interval_seconds": 0.05,
+      "after_seconds": 1.0
     }
-  ],
-  "matching": {
-    "default_poll_seconds": 0.2
-  }
+  ]
 }

@@ -8,28 +8,21 @@ import time
 from pathlib import Path
 from typing import Any
 
-import cv2
 import keyboard
-import mss
-import numpy as np
 import pyautogui
 import psutil
-import pydirectinput
 import win32con
 import win32gui
 import win32process
 
 
 APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
-PROJECT_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
 LOG_DIR = APP_DIR / "logs"
 LOG_PATH = LOG_DIR / "pickbot.log"
 
-pydirectinput.FAILSAFE = False
 pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0
-
 
 logger = logging.getLogger("pickbot")
 HOTKEY_HANDLES: list[Any] = []
@@ -63,8 +56,9 @@ def load_config() -> dict[str, Any]:
     with CONFIG_PATH.open("r", encoding="utf-8") as handle:
         config = json.load(handle)
 
-    if not config.get("steps"):
-        raise ValueError("config.json must contain at least one step.")
+    steps = config.get("steps", [])
+    if not isinstance(steps, list) or not steps:
+        raise ValueError("config.json must contain a non-empty steps array.")
 
     return config
 
@@ -105,165 +99,105 @@ def activate_window(hwnd: int) -> None:
         win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
 
     win32gui.SetForegroundWindow(hwnd)
-    time.sleep(0.1)
+    time.sleep(0.08)
 
 
 def window_rect(hwnd: int) -> tuple[int, int, int, int]:
     return win32gui.GetWindowRect(hwnd)
 
 
-def resolve_region(hwnd: int, region: list[int], relative_to_window: bool = True) -> dict[str, int]:
-    if len(region) != 4:
-        raise ValueError("Region must be [x, y, width, height].")
+def resolve_click_point(hwnd: int, step: dict[str, Any]) -> tuple[int, int]:
+    if str(step.get("position", "")).lower() == "cursor":
+        return current_mouse_position()
 
-    x, y, width, height = region
-    if relative_to_window:
+    x = int(step["x"])
+    y = int(step["y"])
+    if bool(step.get("relative_to_window", True)):
         left, top, _, _ = window_rect(hwnd)
         x += left
         y += top
-
-    return {"left": x, "top": y, "width": width, "height": height}
-
-
-def capture_region(region: dict[str, int]) -> np.ndarray:
-    return capture_region_with_backend(region, "mss")
+    return x, y
 
 
-def capture_region_with_backend(region: dict[str, int], backend: str) -> np.ndarray:
-    if backend == "pyautogui":
-        pil = pyautogui.screenshot(
-            region=(region["left"], region["top"], region["width"], region["height"])
-        )
-        return cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
-
-    with mss.mss() as sct:
-        frame = np.array(sct.grab(region))
-    return frame[:, :, :3]
-
-
-def match_template(hwnd: int, step: dict[str, Any]) -> tuple[float, tuple[int, int]]:
-    template_path = APP_DIR / step["template"]
-    if not template_path.exists():
-        template_path = PROJECT_DIR / step["template"]
-    template = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
-    if template is None:
-        raise FileNotFoundError(f"Template not found or unreadable: {template_path}")
-
-    region = resolve_region(
-        hwnd,
-        step["region"],
-        bool(step.get("relative_to_window", True)),
-    )
-    frame = capture_region_with_backend(region, str(step.get("capture_backend", "pyautogui")))
-    frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-    if frame_gray.shape[0] < template.shape[0] or frame_gray.shape[1] < template.shape[1]:
-        raise ValueError(f"Template is larger than capture region: {template_path}")
-
-    result = cv2.matchTemplate(frame_gray, template, cv2.TM_CCOEFF_NORMED)
-    _, max_value, _, max_location = cv2.minMaxLoc(result)
-    return float(max_value), max_location
-
-
-def press_key(step: dict[str, Any], config: dict[str, Any]) -> None:
-    key = step["key"]
-    press_seconds = float(step.get("press_seconds", 0.05))
-    count = int(step.get("count", 1))
-    gap_seconds = float(step.get("gap_seconds", 0.05))
-    backend = str(config.get("input", {}).get("backend", "pyautogui")).lower()
-
-    for index in range(count):
-        if backend == "pyautogui":
-            pyautogui.keyDown(key)
-            time.sleep(press_seconds)
-            pyautogui.keyUp(key)
-        else:
-            pydirectinput.keyDown(key)
-            time.sleep(press_seconds)
-            pydirectinput.keyUp(key)
-        if index + 1 < count:
-            interruptible_sleep(None, gap_seconds)
-
-    logger.info("Pressed key: %s via %s", key, backend)
-
-
-def click_mouse(hwnd: int, config: dict[str, Any], step: dict[str, Any]) -> None:
-    button = str(step.get("button", "left"))
-    backend = str(config.get("input", {}).get("backend", "pyautogui")).lower()
-    count = int(step.get("count", 1))
-    gap_seconds = float(step.get("gap_seconds", 0.05))
-    hold_seconds = float(step.get("hold_seconds", 0.0))
-    use_cursor = str(step.get("position", "")).lower() == "cursor"
-
-    if use_cursor:
-        click_x, click_y = current_mouse_position()
-    else:
-        region = resolve_region(
-            hwnd,
-            [int(step["x"]), int(step["y"]), 1, 1],
-            bool(step.get("relative_to_window", True)),
-        )
-        click_x, click_y = region["left"], region["top"]
-
-    for index in range(count):
-        if backend == "pyautogui":
-            if not use_cursor:
-                pyautogui.moveTo(click_x, click_y)
-            if hold_seconds > 0:
-                pyautogui.mouseDown(x=click_x, y=click_y, button=button)
-                interruptible_sleep(None, hold_seconds)
-                pyautogui.mouseUp(x=click_x, y=click_y, button=button)
-            else:
-                pyautogui.click(x=click_x, y=click_y, button=button)
-        else:
-            if hold_seconds > 0:
-                pydirectinput.mouseDown(x=click_x, y=click_y, button=button)
-                interruptible_sleep(None, hold_seconds)
-                pydirectinput.mouseUp(x=click_x, y=click_y, button=button)
-            else:
-                pydirectinput.click(click_x, click_y, button=button)
-        if index + 1 < count:
-            interruptible_sleep(None, gap_seconds)
-
-    logger.info("Clicked %s at %s,%s via %s (hold %.3fs)", button, click_x, click_y, backend, hold_seconds)
-
-
-def wait_for_image(hwnd: int, config: dict[str, Any], step: dict[str, Any]) -> None:
-    timeout_seconds = float(step.get("timeout_seconds", 5.0))
-    threshold = float(step.get("threshold", 0.92))
-    poll_seconds = float(config.get("matching", {}).get("default_poll_seconds", 0.2))
-    optional = bool(step.get("optional", False))
-    deadline = time.monotonic() + timeout_seconds
-
+def interruptible_sleep(stop_event: threading.Event | None, seconds: float, bot: "Bot | None" = None) -> None:
+    deadline = time.monotonic() + max(0.0, seconds)
     while time.monotonic() < deadline:
-        score, _ = match_template(hwnd, step)
-        if score >= threshold:
-            logger.info("Template matched: %s (%.3f)", step["template"], score)
+        if stop_event is not None and stop_event.is_set():
             return
-        time.sleep(poll_seconds)
+        if bot is not None and bot.check_safety_stop():
+            return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        time.sleep(min(0.05, remaining))
 
-    if optional:
-        logger.info("Optional template not matched: %s", step["template"])
-        return
 
-    raise TimeoutError(f"Template not matched in time: {step['template']}")
+def perform_key_tap(step: dict[str, Any], stop_event: threading.Event, bot: "Bot") -> None:
+    key = str(step["key"])
+    hold_seconds = float(step.get("hold_seconds", 0.03))
+    repeat = int(step.get("repeat", 1))
+    repeat_interval_seconds = float(step.get("repeat_interval_seconds", 0.05))
+
+    for index in range(repeat):
+        pyautogui.keyDown(key)
+        interruptible_sleep(stop_event, hold_seconds, bot)
+        pyautogui.keyUp(key)
+        if index + 1 < repeat:
+            interruptible_sleep(stop_event, repeat_interval_seconds, bot)
+
+    logger.info("Key tap: %s x%d (hold %.3fs)", key, repeat, hold_seconds)
 
 
-def execute_step(hwnd: int, config: dict[str, Any], step: dict[str, Any]) -> None:
-    step_type = step["type"]
+def perform_mouse_click(hwnd: int, step: dict[str, Any], stop_event: threading.Event, bot: "Bot") -> None:
+    button = str(step.get("button", "left"))
+    repeat = int(step.get("repeat", 1))
+    repeat_interval_seconds = float(step.get("repeat_interval_seconds", 0.05))
+    x, y = resolve_click_point(hwnd, step)
 
-    if step_type == "key":
-        press_key(step, config)
-    elif step_type == "click":
-        click_mouse(hwnd, config, step)
-    elif step_type == "sleep":
-        duration = float(step.get("seconds", 1.0))
-        interruptible_sleep(None, duration)
-        logger.info("Slept for %.2f seconds", duration)
-    elif step_type == "wait_image":
-        wait_for_image(hwnd, config, step)
+    for index in range(repeat):
+        if str(step.get("position", "")).lower() != "cursor":
+            pyautogui.moveTo(x, y)
+        pyautogui.click(x=x, y=y, button=button)
+        if index + 1 < repeat:
+            interruptible_sleep(stop_event, repeat_interval_seconds, bot)
+
+    logger.info("Mouse click: %s at %s,%s x%d", button, x, y, repeat)
+
+
+def perform_mouse_hold(hwnd: int, step: dict[str, Any], stop_event: threading.Event, bot: "Bot") -> None:
+    button = str(step.get("button", "left"))
+    hold_seconds = float(step.get("hold_seconds", 0.02))
+    repeat = int(step.get("repeat", 1))
+    repeat_interval_seconds = float(step.get("repeat_interval_seconds", 0.05))
+    x, y = resolve_click_point(hwnd, step)
+
+    for index in range(repeat):
+        if str(step.get("position", "")).lower() != "cursor":
+            pyautogui.moveTo(x, y)
+        pyautogui.mouseDown(x=x, y=y, button=button)
+        interruptible_sleep(stop_event, hold_seconds, bot)
+        pyautogui.mouseUp(x=x, y=y, button=button)
+        if index + 1 < repeat:
+            interruptible_sleep(stop_event, repeat_interval_seconds, bot)
+
+    logger.info("Mouse hold: %s at %s,%s x%d (hold %.3fs)", button, x, y, repeat, hold_seconds)
+
+
+def execute_step(hwnd: int, step: dict[str, Any], stop_event: threading.Event, bot: "Bot") -> None:
+    step_type = str(step["type"]).lower()
+
+    if step_type == "key_tap":
+        perform_key_tap(step, stop_event, bot)
+    elif step_type == "mouse_click":
+        perform_mouse_click(hwnd, step, stop_event, bot)
+    elif step_type == "mouse_hold":
+        perform_mouse_hold(hwnd, step, stop_event, bot)
     else:
         raise ValueError(f"Unsupported step type: {step_type}")
+
+    after_seconds = float(step.get("after_seconds", 0.0))
+    if after_seconds > 0:
+        interruptible_sleep(stop_event, after_seconds, bot)
 
 
 class Bot:
@@ -315,7 +249,8 @@ class Bot:
                 running = self.running
 
             if not running:
-                time.sleep(0.1)
+                idle_poll = float(config.get("runtime", {}).get("idle_poll_seconds", 0.2))
+                interruptible_sleep(self.stop_event, idle_poll)
                 continue
 
             if self.check_safety_stop():
@@ -323,52 +258,37 @@ class Bot:
                 continue
 
             cycle_started = time.monotonic()
-            target = config["target"]
-            try:
-                hwnd = find_target_window(
-                    str(target.get("process_name", "")),
-                    str(target.get("window_title_contains", "")),
-                )
-            except Exception as exc:
-                logger.exception("Target discovery failed: %s", exc)
-                time.sleep(0.5)
-                continue
+            target = config.get("target", {})
+            hwnd = find_target_window(
+                str(target.get("process_name", "")),
+                str(target.get("window_title_contains", "")),
+            )
 
             if not hwnd:
                 logger.info("Target window not found.")
-                time.sleep(0.5)
+                interruptible_sleep(self.stop_event, 0.5)
                 continue
 
             if bool(target.get("bring_to_front", True)):
                 try:
                     activate_window(hwnd)
-                except Exception as exc:  # pragma: no cover - Windows focus issues are environment-specific
+                except Exception as exc:
                     logger.warning("Failed to activate target window: %s", exc)
 
             try:
                 for step in config["steps"]:
-                    if self.check_safety_stop():
+                    if self.check_safety_stop() or self.stop_event.is_set():
                         break
-                    execute_step(hwnd, config, step)
+                    execute_step(hwnd, step, self.stop_event, self)
                 else:
                     logger.info("Cycle completed.")
             except Exception as exc:
                 logger.exception("Cycle failed: %s", exc)
 
-            interval = float(config.get("loop", {}).get("interval_seconds", 1.0))
+            cycle_delay = float(config.get("runtime", {}).get("cycle_delay_seconds", 0.0))
             elapsed = time.monotonic() - cycle_started
-            if elapsed < interval:
-                interruptible_sleep(self.stop_event, interval - elapsed, self)
-
-
-def interruptible_sleep(stop_event: threading.Event | None, seconds: float, bot: Bot | None = None) -> None:
-    deadline = time.monotonic() + max(0.0, seconds)
-    while time.monotonic() < deadline:
-        if stop_event is not None and stop_event.is_set():
-            return
-        if bot is not None and bot.check_safety_stop():
-            return
-        time.sleep(min(0.05, deadline - time.monotonic()))
+            if elapsed < cycle_delay:
+                interruptible_sleep(self.stop_event, cycle_delay - elapsed, self)
 
 
 def bind_hotkeys(bot: Bot) -> None:
@@ -392,13 +312,15 @@ def main() -> None:
     bot = Bot()
     bind_hotkeys(bot)
 
-    logger.info("Python pickbot ready.")
+    logger.info("Pickbot ready.")
     logger.info("App dir: %s", APP_DIR)
     logger.info("Config path: %s", CONFIG_PATH)
-    logger.info("Hotkeys: toggle=%s reload=%s exit=%s",
-                bot.config.get("hotkeys", {}).get("toggle", "f8"),
-                bot.config.get("hotkeys", {}).get("reload", "f9"),
-                bot.config.get("hotkeys", {}).get("exit", "f10"))
+    logger.info(
+        "Hotkeys: toggle=%s reload=%s exit=%s",
+        bot.config.get("hotkeys", {}).get("toggle", "f8"),
+        bot.config.get("hotkeys", {}).get("reload", "f9"),
+        bot.config.get("hotkeys", {}).get("exit", "f10"),
+    )
 
     worker_thread = threading.Thread(target=bot.worker, daemon=True)
     worker_thread.start()

@@ -33,7 +33,6 @@ try {
         --specpath $BuildDir `
         --distpath $DistDir `
         --workpath $BuildDir `
-        --collect-all cv2 `
         --hidden-import win32gui `
         --hidden-import win32con `
         --hidden-import win32process `
