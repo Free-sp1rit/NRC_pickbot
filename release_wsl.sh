@@ -20,7 +20,8 @@ cleanup_release_temp() {
     "$TARGET_DIR/pickbot.ahk" \
     "$TARGET_DIR/build.ps1" \
     "$TARGET_DIR/run.ps1"
-  rm -rf "$TARGET_DIR/_compile_runtime"
+  rm -rf "$TARGET_DIR/compile/Compiler"
+  rm -rf "$TARGET_DIR/logs"
 }
 
 trap cleanup_release_temp EXIT

@@ -12,9 +12,9 @@ $runtimeCandidates = @(
     (Join-Path $toolSourceDir "AutoHotkey32.exe")
 )
 $sourceRuntime = $runtimeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-$toolRoot = Join-Path $PSScriptRoot "_compile_runtime"
-$toolCompilerDir = Join-Path $toolRoot "Compiler"
+$toolCompilerDir = Join-Path $toolSourceDir "Compiler"
 $compiler = Join-Path $toolCompilerDir "Ahk2Exe.exe"
+$toolBase = $sourceRuntime
 
 if (-not (Test-Path $sourceCompiler)) {
     throw "Ahk2Exe.exe was not found at $sourceCompiler."
@@ -34,10 +34,8 @@ if (-not (Test-Path $InputScript)) {
 }
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
-Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $toolRoot
 New-Item -ItemType Directory -Force -Path $toolCompilerDir | Out-Null
 
-Copy-Item -Path $sourceRuntime -Destination (Join-Path $toolRoot "AutoHotkey.exe") -Force
 Copy-Item -Path $sourceCompiler -Destination $compiler -Force
 
 $outputPath = Join-Path $OutputDir $OutputName
@@ -46,13 +44,22 @@ $tempOutputPath = Join-Path $OutputDir "_pickbot_build.exe"
 try {
     Remove-Item -Force -ErrorAction SilentlyContinue $tempOutputPath
 
-    & $compiler /in $InputScript /out $tempOutputPath
+    & $compiler /in $InputScript /out $tempOutputPath /base $toolBase /silent verbose
 
-    if ($LASTEXITCODE -ne 0) {
+    if (($null -ne $LASTEXITCODE) -and ("$LASTEXITCODE" -ne "") -and ($LASTEXITCODE -ne 0)) {
         throw "Ahk2Exe exited with code $LASTEXITCODE."
     }
 
-    if (-not (Test-Path $tempOutputPath)) {
+    $outputReady = $false
+    foreach ($attempt in 1..20) {
+        if (Test-Path $tempOutputPath) {
+            $outputReady = $true
+            break
+        }
+        Start-Sleep -Milliseconds 200
+    }
+
+    if (-not $outputReady) {
         throw "Failed to compile: $InputScript"
     }
 
@@ -61,5 +68,5 @@ try {
 }
 finally {
     Remove-Item -Force -ErrorAction SilentlyContinue $tempOutputPath
-    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $toolRoot
+    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $toolCompilerDir
 }
