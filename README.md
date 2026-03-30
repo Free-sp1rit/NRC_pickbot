@@ -103,3 +103,29 @@ The `region` field is `[x, y, width, height]`.
 - This is foreground automation, so it will take focus and interfere with normal keyboard and mouse use while running.
 - Start with the game in windowed or borderless mode while testing.
 - Some games with anti-cheat may detect or block automation.
+
+## Build EXE
+
+Windows-side build:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build.ps1
+```
+
+WSL-to-Windows release:
+
+```bash
+./release_wsl.sh
+```
+
+That release flow builds on Windows and publishes to:
+
+`G:\MyBot\pickbot`
+
+Final release files are intended to be:
+
+- `pickbot.exe`
+- `config.json`
+- `README.md`
+- `USER_GUIDE.md`
+- `templates\`

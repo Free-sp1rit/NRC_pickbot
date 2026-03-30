@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 import threading
 import time
 from pathlib import Path
@@ -18,9 +19,10 @@ import win32gui
 import win32process
 
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-CONFIG_PATH = SCRIPT_DIR / "config.json"
-LOG_DIR = SCRIPT_DIR / "logs"
+APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
+PROJECT_DIR = Path(__file__).resolve().parent
+CONFIG_PATH = APP_DIR / "config.json"
+LOG_DIR = APP_DIR / "logs"
 LOG_PATH = LOG_DIR / "pickbot.log"
 
 pydirectinput.FAILSAFE = False
@@ -46,6 +48,9 @@ def configure_logging() -> None:
 
 
 def load_config() -> dict[str, Any]:
+    if not CONFIG_PATH.exists():
+        raise FileNotFoundError(f"Missing config.json next to the app: {CONFIG_PATH}")
+
     with CONFIG_PATH.open("r", encoding="utf-8") as handle:
         config = json.load(handle)
 
@@ -116,7 +121,9 @@ def capture_region(region: dict[str, int]) -> np.ndarray:
 
 
 def match_template(hwnd: int, step: dict[str, Any]) -> tuple[float, tuple[int, int]]:
-    template_path = SCRIPT_DIR / step["template"]
+    template_path = APP_DIR / step["template"]
+    if not template_path.exists():
+        template_path = PROJECT_DIR / step["template"]
     template = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
     if template is None:
         raise FileNotFoundError(f"Template not found or unreadable: {template_path}")
@@ -281,6 +288,8 @@ def main() -> None:
     bind_hotkeys(bot)
 
     logger.info("Python pickbot ready.")
+    logger.info("App dir: %s", APP_DIR)
+    logger.info("Config path: %s", CONFIG_PATH)
     logger.info("Hotkeys: toggle=%s reload=%s exit=%s",
                 bot.config.get("hotkeys", {}).get("toggle", "f8"),
                 bot.config.get("hotkeys", {}).get("reload", "f9"),
