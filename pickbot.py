@@ -192,6 +192,7 @@ def click_mouse(hwnd: int, config: dict[str, Any], step: dict[str, Any]) -> None
     backend = str(config.get("input", {}).get("backend", "pyautogui")).lower()
     count = int(step.get("count", 1))
     gap_seconds = float(step.get("gap_seconds", 0.05))
+    hold_seconds = float(step.get("hold_seconds", 0.0))
     use_cursor = str(step.get("position", "")).lower() == "cursor"
 
     if use_cursor:
@@ -208,13 +209,23 @@ def click_mouse(hwnd: int, config: dict[str, Any], step: dict[str, Any]) -> None
         if backend == "pyautogui":
             if not use_cursor:
                 pyautogui.moveTo(click_x, click_y)
-            pyautogui.click(x=click_x, y=click_y, button=button)
+            if hold_seconds > 0:
+                pyautogui.mouseDown(x=click_x, y=click_y, button=button)
+                interruptible_sleep(None, hold_seconds)
+                pyautogui.mouseUp(x=click_x, y=click_y, button=button)
+            else:
+                pyautogui.click(x=click_x, y=click_y, button=button)
         else:
-            pydirectinput.click(click_x, click_y, button=button)
+            if hold_seconds > 0:
+                pydirectinput.mouseDown(x=click_x, y=click_y, button=button)
+                interruptible_sleep(None, hold_seconds)
+                pydirectinput.mouseUp(x=click_x, y=click_y, button=button)
+            else:
+                pydirectinput.click(click_x, click_y, button=button)
         if index + 1 < count:
             interruptible_sleep(None, gap_seconds)
 
-    logger.info("Clicked %s at %s,%s via %s", button, click_x, click_y, backend)
+    logger.info("Clicked %s at %s,%s via %s (hold %.3fs)", button, click_x, click_y, backend, hold_seconds)
 
 
 def wait_for_image(hwnd: int, config: dict[str, Any], step: dict[str, Any]) -> None:

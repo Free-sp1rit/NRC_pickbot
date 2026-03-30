@@ -27,6 +27,7 @@
       "type": "click",
       "position": "cursor",
       "button": "left",
+      "hold_seconds": 0.02,
       "count": 1
     }
   ],

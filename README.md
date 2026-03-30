@@ -96,6 +96,7 @@ Click step options:
 - `position: "cursor"`: click the current mouse position without remapping
 - `x` / `y`: click a fixed point
 - `relative_to_window`: when using `x` / `y`, treat them as window-relative coordinates
+- `hold_seconds`: hold the mouse button before releasing
 
 Example `wait_image` step:
 
