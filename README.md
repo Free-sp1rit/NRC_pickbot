@@ -143,7 +143,7 @@ Drag overrides:
 - `position=center|cursor|window_center`
 - `dx=0 dy=300`
 - `dx_ratio=0.0 dy_ratio=0.5`
-- `duration_seconds=0.3`
+- `duration_seconds=0.5`
 - `steps=20`
 - `base=2560x1440`
 

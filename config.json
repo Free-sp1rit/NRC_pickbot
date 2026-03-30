@@ -40,7 +40,7 @@
     "mouse_drag": {
       "position": "center",
       "button": "left",
-      "duration_seconds": 0.3,
+      "duration_seconds": 0.5,
       "steps": 20,
       "dx_ratio": 0.0,
       "dy_ratio": 0.5,

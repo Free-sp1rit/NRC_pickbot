@@ -263,7 +263,7 @@ def apply_step_defaults(step: dict[str, Any], defaults: dict[str, Any]) -> dict[
     if step_type == "mouse_hold":
         merged.setdefault("hold_seconds", 0.02)
     if step_type == "mouse_drag":
-        merged.setdefault("duration_seconds", 0.3)
+        merged.setdefault("duration_seconds", 0.5)
         merged.setdefault("steps", 20)
         merged.setdefault("dx_ratio", 0.0)
         merged.setdefault("dy_ratio", 0.5)
@@ -288,7 +288,7 @@ def apply_step_defaults(step: dict[str, Any], defaults: dict[str, Any]) -> dict[
         merged["confidence"] = float(merged.get("confidence", 0.9))
         merged["grayscale"] = to_bool(merged.get("grayscale", True))
     if step_type == "mouse_drag":
-        merged["duration_seconds"] = float(merged.get("duration_seconds", 0.3))
+        merged["duration_seconds"] = float(merged.get("duration_seconds", 0.5))
         merged["steps"] = max(1, int(merged.get("steps", 20)))
         merged["dx_ratio"] = float(merged.get("dx_ratio", 0.0))
         merged["dy_ratio"] = float(merged.get("dy_ratio", 0.5))
@@ -634,7 +634,7 @@ def perform_mouse_drag(hwnd: int, step: dict[str, Any], stop_event: threading.Ev
     button = str(step.get("button", "left"))
     repeat = int(step.get("repeat", 1))
     repeat_interval_seconds = float(step.get("repeat_interval_seconds", 0.05))
-    duration_seconds = float(step.get("duration_seconds", 0.3))
+    duration_seconds = float(step.get("duration_seconds", 0.5))
     move_steps = max(1, int(step.get("steps", 20)))
     start_x, start_y = resolve_click_point(hwnd, step)
 
