@@ -49,7 +49,8 @@ python pickbot.py
 Default hotkeys:
 
 - `F8`: start or stop
-- `F9`: reload `config.json` and `flow.txt`
+- `F9`: reload the main `config.json` + `flow.txt`
+- `F7`: load `flow_test.txt` for testing
 - `F10`: exit
 
 ## Config Layout
@@ -73,6 +74,7 @@ Use `config.json` for stable project settings and default step parameters.
   },
   "workflow": {
     "path": "flow.txt",
+    "test_path": "flow_test.txt",
     "default_between_seconds": 1.0
   },
   "defaults": {
@@ -99,6 +101,8 @@ Use `config.json` for stable project settings and default step parameters.
 ### flow.txt
 
 Use `flow.txt` for the step order.
+
+Use `flow_test.txt` for temporary test actions you want to load with `F7`.
 
 ```txt
 # Default gap between steps comes from config.json

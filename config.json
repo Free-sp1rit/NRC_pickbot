@@ -15,10 +15,12 @@
   "hotkeys": {
     "toggle": "f8",
     "reload": "f9",
+    "load_test": "f7",
     "exit": "f10"
   },
   "workflow": {
     "path": "flow.txt",
+    "test_path": "flow_test.txt",
     "default_between_seconds": 0.5
   },
   "defaults": {

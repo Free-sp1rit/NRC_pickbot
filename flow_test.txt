@@ -1,0 +1,6 @@
+# Test workflow loaded by F7.
+# F9 switches back to the main flow.txt.
+
+drag_down_half position=cursor
+wait 1
+drag position=cursor dy_ratio=0.5 duration_seconds=0.7

@@ -20,6 +20,8 @@ import win32process
 
 APP_DIR = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
+DEFAULT_WORKFLOW_PATH = APP_DIR / "flow.txt"
+DEFAULT_TEST_WORKFLOW_PATH = APP_DIR / "flow_test.txt"
 PIC_DIR = APP_DIR / "pic"
 LOG_DIR = APP_DIR / "logs"
 LOG_PATH = LOG_DIR / "pickbot.log"
@@ -341,7 +343,7 @@ def load_workflow(workflow_path: Path, defaults: dict[str, Any]) -> list[dict[st
     return root_steps
 
 
-def load_config() -> dict[str, Any]:
+def load_config(workflow_override: Path | None = None) -> dict[str, Any]:
     if not CONFIG_PATH.exists():
         raise FileNotFoundError(f"Missing config.json next to the app: {CONFIG_PATH}")
 
@@ -349,8 +351,11 @@ def load_config() -> dict[str, Any]:
         config = json.load(handle)
 
     workflow = config.setdefault("workflow", {})
-    workflow_path = APP_DIR / str(workflow.get("path", "flow.txt"))
-    workflow["path"] = workflow_path.name
+    main_workflow_path = APP_DIR / str(workflow.get("path", DEFAULT_WORKFLOW_PATH.name))
+    test_workflow_path = APP_DIR / str(workflow.get("test_path", DEFAULT_TEST_WORKFLOW_PATH.name))
+    workflow_path = workflow_override or main_workflow_path
+    workflow["path"] = main_workflow_path.name
+    workflow["test_path"] = test_workflow_path.name
     workflow.setdefault("default_between_seconds", 1.0)
 
     defaults = config.setdefault("defaults", {})
@@ -753,13 +758,23 @@ class Bot:
         self.lock = threading.Lock()
         self.stop_event = threading.Event()
         self.running = False
-        self.config = load_config()
+        self.workflow_override: Path | None = None
+        self.config = load_config(self.workflow_override)
 
-    def reload_config(self) -> None:
+    def reload_main_config(self) -> None:
         with self.lock:
-            self.config = load_config()
+            self.workflow_override = None
+            self.config = load_config(self.workflow_override)
             bind_hotkeys(self)
-        logger.info("Config reloaded.")
+        logger.info("Main workflow loaded.")
+
+    def load_test_config(self) -> None:
+        with self.lock:
+            test_path = APP_DIR / str(self.config.get("workflow", {}).get("test_path", DEFAULT_TEST_WORKFLOW_PATH.name))
+            self.workflow_override = test_path
+            self.config = load_config(self.workflow_override)
+            bind_hotkeys(self)
+        logger.info("Test workflow loaded: %s", self.config.get("workflow_path"))
 
     def toggle(self) -> None:
         with self.lock:
@@ -849,7 +864,8 @@ def bind_hotkeys(bot: Bot) -> None:
 
     hotkeys = bot.config.get("hotkeys", {})
     HOTKEY_HANDLES.append(keyboard.add_hotkey(str(hotkeys.get("toggle", "f8")), bot.toggle))
-    HOTKEY_HANDLES.append(keyboard.add_hotkey(str(hotkeys.get("reload", "f9")), bot.reload_config))
+    HOTKEY_HANDLES.append(keyboard.add_hotkey(str(hotkeys.get("reload", "f9")), bot.reload_main_config))
+    HOTKEY_HANDLES.append(keyboard.add_hotkey(str(hotkeys.get("load_test", "f7")), bot.load_test_config))
     HOTKEY_HANDLES.append(keyboard.add_hotkey(str(hotkeys.get("exit", "f10")), bot.stop))
 
 
@@ -863,9 +879,10 @@ def main() -> None:
     logger.info("Config path: %s", CONFIG_PATH)
     logger.info("Workflow path: %s", bot.config.get("workflow_path", APP_DIR / "flow.txt"))
     logger.info(
-        "Hotkeys: toggle=%s reload=%s exit=%s",
+        "Hotkeys: toggle=%s reload=%s load_test=%s exit=%s",
         bot.config.get("hotkeys", {}).get("toggle", "f8"),
         bot.config.get("hotkeys", {}).get("reload", "f9"),
+        bot.config.get("hotkeys", {}).get("load_test", "f7"),
         bot.config.get("hotkeys", {}).get("exit", "f10"),
     )
 

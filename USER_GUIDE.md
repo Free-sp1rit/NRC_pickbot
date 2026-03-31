@@ -19,7 +19,8 @@ python pickbot.py
 ## Default hotkeys
 
 - `F8`: start or stop
-- `F9`: reload `config.json` and `flow.txt`
+- `F9`: reload the main `config.json` and `flow.txt`
+- `F7`: load `flow_test.txt`
 - `F10`: exit
 
 ## Emergency stop
@@ -41,6 +42,7 @@ python pickbot.py
 - `wait_image` can be used for scene detection based on a reference screenshot region.
 - `base=2560x1440` can scale coordinates from a fixed reference resolution.
 - `flow.txt` is intentionally short. Example:
+- `flow_test.txt` is a separate test workflow file for quick action tests.
 
 ```txt
 hold position=cursor
