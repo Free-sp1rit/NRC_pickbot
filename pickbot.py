@@ -13,6 +13,7 @@ from typing import Any
 import keyboard
 import psutil
 import pyautogui
+import win32api
 import win32con
 import win32gui
 import win32process
@@ -32,6 +33,11 @@ pyautogui.PAUSE = 0
 logger = logging.getLogger("pickbot")
 HOTKEY_HANDLES: list[Any] = []
 IMAGE_TEMPLATE_CACHE: dict[tuple[str, int, int, int, int, bool, int, int], Any] = {}
+MOUSE_BUTTON_FLAGS = {
+    "left": (win32con.MOUSEEVENTF_LEFTDOWN, win32con.MOUSEEVENTF_LEFTUP),
+    "right": (win32con.MOUSEEVENTF_RIGHTDOWN, win32con.MOUSEEVENTF_RIGHTUP),
+    "middle": (win32con.MOUSEEVENTF_MIDDLEDOWN, win32con.MOUSEEVENTF_MIDDLEUP),
+}
 
 STEP_TYPE_ALIASES = {
     "click": "mouse_click",
@@ -94,6 +100,13 @@ def configure_logging() -> None:
 def current_mouse_position() -> tuple[int, int]:
     pos = pyautogui.position()
     return int(pos.x), int(pos.y)
+
+
+def mouse_button_flags(button: str) -> tuple[int, int]:
+    normalized = button.strip().lower()
+    if normalized not in MOUSE_BUTTON_FLAGS:
+        raise ValueError(f"Unsupported mouse button: {button}")
+    return MOUSE_BUTTON_FLAGS[normalized]
 
 
 def parse_scalar(value: str) -> Any:
@@ -642,6 +655,7 @@ def perform_mouse_drag(hwnd: int, step: dict[str, Any], stop_event: threading.Ev
     duration_seconds = float(step.get("duration_seconds", 0.5))
     move_steps = max(1, int(step.get("steps", 20)))
     start_x, start_y = resolve_click_point(hwnd, step)
+    down_flag, up_flag = mouse_button_flags(button)
 
     screen_width, screen_height = pyautogui.size()
     dx = float(step.get("dx", 0.0))
@@ -654,27 +668,44 @@ def perform_mouse_drag(hwnd: int, step: dict[str, Any], stop_event: threading.Ev
 
     for index in range(repeat):
         if str(step.get("position", "")).lower() != "cursor":
-            pyautogui.moveTo(start_x, start_y)
-        pyautogui.mouseDown(x=start_x, y=start_y, button=button)
+            win32api.SetCursorPos((start_x, start_y))
+
+        current_x, current_y = current_mouse_position()
+        remaining_x = end_x - current_x
+        remaining_y = end_y - current_y
+        moved_x = 0
+        moved_y = 0
+
+        win32api.mouse_event(down_flag, 0, 0, 0, 0)
         drag_started = time.monotonic()
         tick_seconds = max(0.005, duration_seconds / move_steps)
         while True:
             if bot.check_safety_stop() or stop_event.is_set():
-                pyautogui.mouseUp(button=button)
+                win32api.mouse_event(up_flag, 0, 0, 0, 0)
                 return
 
             elapsed = min(duration_seconds, time.monotonic() - drag_started)
             progress = 1.0 if duration_seconds <= 0 else elapsed / duration_seconds
-            current_x = round(start_x + dx * progress)
-            current_y = round(start_y + dy * progress)
-            pyautogui.moveTo(current_x, current_y)
+            target_x = round(remaining_x * progress)
+            target_y = round(remaining_y * progress)
+            step_dx = target_x - moved_x
+            step_dy = target_y - moved_y
+            if step_dx or step_dy:
+                win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, step_dx, step_dy, 0, 0)
+                moved_x += step_dx
+                moved_y += step_dy
 
             if progress >= 1.0:
                 break
 
             interruptible_sleep(stop_event, tick_seconds, bot)
 
-        pyautogui.mouseUp(x=end_x, y=end_y, button=button)
+        final_dx = remaining_x - moved_x
+        final_dy = remaining_y - moved_y
+        if final_dx or final_dy:
+            win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, final_dx, final_dy, 0, 0)
+
+        win32api.mouse_event(up_flag, 0, 0, 0, 0)
         if index + 1 < repeat:
             interruptible_sleep(stop_event, repeat_interval_seconds, bot)
 
