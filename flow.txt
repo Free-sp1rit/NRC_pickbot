@@ -4,10 +4,11 @@
 # `for_seconds 30` means: keep running the block for about 30 seconds.
 # `wait_image` only compares the selected UI region, not the whole screenshot.
 
-wait_image template=主场景.png x=1680 y=0 w=470 h=120 base=2560x1440 confidence=0.90
+wait_image template=主场景.png x=140 y=70 w=70 h=50 base=2560x1440 confidence=0.50
 
 key 1
-hold position=cursor
+drag position=cursor dy_ratio=1.0 duration_seconds=0.8
+
 key 2
 hold position=cursor
 key 3
@@ -19,7 +20,7 @@ hold position=cursor
 key 6
 hold position=cursor
 
-repeat 30
+repeat 1
 key tab
 key 2
 key esc
@@ -33,8 +34,7 @@ hold position=cursor
 end
 
 key m
-wait_image template=切换页.png x=0 y=0 w=520 h=170 base=2560x1440 confidence=0.93
+wait_image template=切换页.png x=0 y=20 w=50 h=100 base=2560x1440 confidence=0.90
+hold
+wait 1
 hold x=2340 y=1340 base=2560x1440
-hold x=2340 y=1340 base=2560x1440
-wait_image template=副场景.png x=1080 y=0 w=260 h=150 base=2560x1440 confidence=0.90
-key f12
