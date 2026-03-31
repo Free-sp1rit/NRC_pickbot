@@ -20,6 +20,8 @@ This version is focused on foreground input only and uses:
 - Inserts a default wait between every two steps.
 - Uses hotkeys to start, stop, reload config, and exit.
 - Writes logs to `logs/pickbot.log`.
+- Uses simulated keyboard and mouse input plus screen-state detection.
+- Does not directly read or write the target program's memory.
 
 ## Requirements
 
@@ -52,6 +54,13 @@ Default hotkeys:
 - `F9`: reload the main `config.json` + `flow.txt`
 - `F7`: load `flow_test.txt` for testing
 - `F10`: exit
+
+## Release Policy
+
+- Official builds should be distributed free of charge.
+- Only official builds with a published version and checksum should be supported.
+- This project currently uses external input simulation and screen detection only.
+- This project is not designed around target-process memory read/write.
 
 ## Config Layout
 
@@ -247,3 +256,14 @@ Final release files are intended to be:
 - `flow.txt`
 - `README.md`
 - `USER_GUIDE.md`
+- `NOTICE.txt`
+- `VERSION.txt`
+- `SHA256SUMS.txt`
+
+## Release Prep
+
+For release preparation inside the repository:
+
+- Update `VERSION.txt`
+- Review [RELEASE_CHECKLIST.md](/home/yimg/code/pickbot/RELEASE_CHECKLIST.md)
+- Update [RELEASE_NOTES_v0.1.0.md](/home/yimg/code/pickbot/RELEASE_NOTES_v0.1.0.md) or create a new release note file

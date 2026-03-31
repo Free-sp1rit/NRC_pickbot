@@ -2,7 +2,8 @@ param(
     [string]$PythonCommand = "python",
     [string]$VenvDir = (Join-Path $PSScriptRoot ".venv-build"),
     [string]$BuildDir = (Join-Path $PSScriptRoot "build"),
-    [string]$DistDir = (Join-Path $PSScriptRoot "dist")
+    [string]$DistDir = (Join-Path $PSScriptRoot "dist"),
+    [string]$VersionFile = (Join-Path $PSScriptRoot "VERSION.txt")
 )
 
 $ErrorActionPreference = "Stop"
@@ -47,4 +48,25 @@ if (-not (Test-Path $exePath)) {
     throw "Build finished without producing $exePath"
 }
 
+$versionText = "unknown"
+if (Test-Path $VersionFile) {
+    $versionText = (Get-Content -Raw -Path $VersionFile).Trim()
+    Set-Content -Path (Join-Path $DistDir "VERSION.txt") -Value $versionText -Encoding utf8
+}
+
+$checksumLines = @()
+$filesToHash = @("pickbot.exe", "VERSION.txt")
+foreach ($fileName in $filesToHash) {
+    $filePath = Join-Path $DistDir $fileName
+    if (Test-Path $filePath) {
+        $hash = (Get-FileHash -Algorithm SHA256 -Path $filePath).Hash.ToLowerInvariant()
+        $checksumLines += "$hash *$fileName"
+    }
+}
+
+if ($checksumLines.Count -gt 0) {
+    Set-Content -Path (Join-Path $DistDir "SHA256SUMS.txt") -Value $checksumLines -Encoding ascii
+}
+
 Write-Host "Built: $exePath"
+Write-Host "Version: $versionText"

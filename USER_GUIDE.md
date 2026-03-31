@@ -4,6 +4,13 @@
 
 The primary runtime is Python.
 
+## Official release notice
+
+- Official builds are intended to be distributed free of charge.
+- Use only the official release channel.
+- If you bought this tool from an unofficial source, request a refund.
+- Only official builds with a published version and checksum are supported.
+
 ## How to use
 
 1. Install Python 3.10 or newer on Windows.
@@ -31,6 +38,8 @@ python pickbot.py
 
 - This is foreground automation and will take control of keyboard and mouse input while running.
 - The game should be in windowed or borderless mode during setup and testing.
+- This tool uses simulated keyboard and mouse input plus screen-state detection.
+- This tool does not directly read or write the target program's memory.
 - The current program uses actions like `mouse_click`, `mouse_hold`, `mouse_drag`, `key_tap`, and `wait`.
 - `mouse_hold` defaults to 20ms if you do not override `hold_seconds`.
 - `drag_down_half position=cursor` means hold the mouse, drag downward by half the screen height, then release.
@@ -50,3 +59,16 @@ key p gap=0.5
 wait 1.5
 click x=960 y=540
 ```
+
+## Release files
+
+An official release may include:
+
+- `pickbot.exe`
+- `config.json`
+- `flow.txt`
+- `USER_GUIDE.md`
+- `README.md`
+- `NOTICE.txt`
+- `VERSION.txt`
+- `SHA256SUMS.txt`
